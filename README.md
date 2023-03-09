@@ -1,5 +1,5 @@
 # luksman
-**A simple manager for Luks encrypted volumes **
+**A simple manager for Luks encrypted volumes**
 
 Main Repository : https://github.com/rigou/luksman
 
