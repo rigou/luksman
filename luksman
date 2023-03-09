@@ -1,0 +1,596 @@
+#!/bin/bash
+# prerequisites : apt install cryptsetup-bin
+# installation: see README.txt
+# run this script as root (sudo)
+
+# Main Repository : /mnt/node2/lv_dev/Projects/luksman/
+# Reference documentation : /mnt/node2/lv_doc/Documentation_technique/Doc_Linux/Encryption with Luks/
+
+readonly APPNAME='luksman'
+readonly VERSION='1.2.1'
+
+function get_key_device {
+	local keydev_from_label=''
+	if [ -n "$KeyLabel" ] ; then
+		keydev_from_label=$(readlink -fe "/dev/disk/by-label/$KeyLabel")
+		if [ -n "$keydev_from_label" ] ; then
+			echo "$keydev_from_label" # empty string if label not found
+		fi
+	elif [ -n "$KeyDev" ] ; then
+		echo "$KeyDev"
+	fi
+}
+
+function get_temp_keyfile {
+	echo "$KeyFile.tmp"
+}
+
+function validate_temp_keyfile {
+	echo "validating new key file"
+	mv -f "$(get_temp_keyfile)" "$KeyFile"
+	return $?
+}
+
+function delete_all_temp_keyfiles {
+	find "$(dirname "$KeyFile")"  -name '*\.tmp' -exec rm "{}" \;
+}
+
+# Store a randomly generated 33 char key in a file
+# we create the key using a 90 ascii printable char set
+# a 33 char key lengths gives 3 x 10^64 distinct keys
+# Since v1.1.4 the key string is not terminated by \n, enabling us to enter it with the keyboard if so desired
+# Lucks will use our key to unlock the master-key of the encrypted device
+# (passphrases can be up to 512 characters and keyfiles up to 8192 KiB)
+function create_temp_keyfile {
+	local -i retval_int=0 # success
+	local temp_keyfile ; temp_keyfile=$(get_temp_keyfile)
+	echo "generating new key file"
+	local key ; key=$(LC_ALL=C tr -dc 'A-Za-z0-9_\+\-*/=,?;.:/!$&#{[|]}@%&$"~^' < /dev/random | head -c 33)
+	mkdir -p "$(dirname "$temp_keyfile")"
+	if ! echo -n "$key" >"$temp_keyfile" ; then
+		retval_int=1 # error
+	fi
+	return $retval_int
+}
+
+function mount_key {
+	local -i retval_int=0 # 0=success, 1=error
+	if ! mountpoint -q "$KeyMountPoint" ; then
+		#echo "mounting key device $KeyDev"
+		mount "$KeyDev" "$KeyMountPoint"
+		retval_int=$?
+	fi
+	return $retval_int
+}
+
+function unmount_key {
+	local -i retval_int=0 # 0=success, 1=error
+	if mountpoint -q "$KeyMountPoint" ; then
+		#echo "unmounting key device $KeyDev"
+		delete_all_temp_keyfiles
+		umount "$KeyMountPoint"
+		retval_int=$?
+	else
+		echo "key not found at $KeyMountPoint"
+		retval_int=0 # ignore this error
+	fi
+	return $retval_int
+}
+
+# Tells if given volume name corresponds to an attached loop device
+# Return value: 0=attached, 1=not attached or not a loop device
+function is_attached_loop_device {
+	local -i retval_int ; retval_int=$(losetup --output BACK-FILE --noheadings |grep -c "/$Name.dat")
+	if [ $retval_int -gt 0 ] ; then
+		retval_int=0
+	else
+		retval_int=1
+	fi
+	return $retval_int
+}
+	
+# Return values written on stdout: 			
+declare -ir GVS_CLOSED=0
+declare -ir GVS_MOUNTED=1	# encrypted filesystem mounted, ready for use
+declare -ir GVS_FAILED1=2		# blockfile attached (if any), no luks open
+declare -ir GVS_FAILED2=3		# blockfile attached (if any) and luks open but filesystem not mounted
+function get_volume_status {
+	local -i retval_int=$GVS_CLOSED
+	local -i attached_bool=0 # 0=false, 1=true
+	local -i luksopen_bool=0
+	local -i mounted_bool=0
+	if is_attached_loop_device ; then
+		attached_bool=1
+	fi
+	if [ -b "$LuksMap" ] ; then
+		luksopen_bool=1
+	fi
+	if mountpoint -q "$LuksMountPoint" ; then
+		mounted_bool=1
+	fi
+	if [ $mounted_bool -eq 1 ] ; then
+		retval_int=$GVS_MOUNTED
+	else
+		if [ $luksopen_bool -eq 1 ] ; then
+			retval_int=$GVS_FAILED2
+		elif [ $attached_bool -eq 1 ] ; then
+			retval_int=$GVS_FAILED1
+		fi
+	fi
+	#echo "attached_bool=$attached_bool luksopen_bool=$luksopen_bool mounted_bool=$mounted_bool retval_int=$retval_int" 1>&2
+	echo $retval_int
+}
+
+# to get the assigned loop device name after calling this function:
+# losetup -j /mnt/DATA/rigou/DEMO.dat --output NAME --noheadings
+# return value: writes the device name on stdout, or 'ERROR'
+function attach_blockfile {
+	if [ -f "$BlockFile" ] ; then
+		if ! is_attached_loop_device ; then
+			echo "attaching $BlockFile" 1>&2
+			local luks_dev ; luks_dev=$(losetup -f) # /dev/loop0
+			if losetup "$luks_dev" "$BlockFile" ; then
+				echo "$luks_dev"
+			else
+				echo 'ERROR'
+			fi
+		else
+			echo "$Name is already attached" 1>&2
+			echo 'ERROR'
+		fi
+	else
+		echo "file not found $BlockFile" 1>&2
+		echo 'ERROR'
+	fi
+	return
+}
+
+function create_luks {
+	local -i retval_int=0 # success
+	local luks_dev=''
+	local -i attached_bool=0 # 0=false, 1=true
+	if [ -n "$BlockFile" ] ; then
+		if ! [ -f "$BlockFile" ] ; then
+			echo "sizing $BlockFile to $Size MiB"
+			if dd if=/dev/zero of="$BlockFile" bs=1M count=$Size ; then
+				echo "assigning $BlockFile to $Owner"
+				chown "$Owner": "$BlockFile"
+				luks_dev=$(attach_blockfile) # /dev/loop0
+				if [ "$luks_dev" != 'ERROR'  ] ; then
+					attached_bool=1 # true
+				else
+					retval_int=1 # error
+				fi
+			else
+				retval_int=1 # error
+			fi
+		else
+			echo "volume $Name not created because file $BlockFile already exists"
+			retval_int=1 # error
+		fi
+	else
+		luks_dev=$Device
+	fi
+	if [ $retval_int -eq 0 ] ; then
+		if [ -n "$KeyDev" ] ; then
+			if mount_key ; then
+				if create_temp_keyfile ; then
+					echo "formatting $Name"
+					cryptsetup luksFormat --key-file="$(get_temp_keyfile)" -q "$luks_dev"
+					retval_int=$?
+				else
+					retval_int=1 # error
+				fi
+			else
+				retval_int=1 # error
+			fi
+		else
+			echo "formatting $Name"
+			cryptsetup luksFormat -q  "$luks_dev" 
+			retval_int=$?
+		fi
+	fi
+	if [ $retval_int -eq 0 ] ; then
+		if [ -n "$KeyDev" ] ; then
+			cryptsetup open --type luks --key-file="$(get_temp_keyfile)" "$luks_dev" "$Name"
+		else
+			cryptsetup open --type luks "$luks_dev" "$Name"
+		fi
+		retval_int=$?
+		if [ $retval_int -eq 0 ] ; then
+			if mkfs -t ext4 -L "$Name" "$LuksMap" ; then
+				echo "assigning $Name to $Owner"
+				if mount "$LuksMap" "$LuksMountPoint" ; then
+					chown "$Owner": "$LuksMountPoint"
+					retval_int=$?
+					umount "$LuksMountPoint"
+					# take a short nap after umount because sometimes cryptsetup close would fail
+					# with "device-mapper: remove ioctl on PRO  failed: Device or resource busy"
+					sleep 2
+				else
+					retval_int=1 # error
+				fi
+			else
+				retval_int=1 # error
+			fi
+			cryptsetup close "$LuksMap"
+		fi
+	fi
+	if [ $attached_bool -eq 1 ] ; then
+		echo "detaching $BlockFile"
+		losetup -d "$luks_dev"
+	fi
+	if [ -n "$KeyDev" ] ; then
+		if [ $retval_int -eq 0 ] ; then
+			validate_temp_keyfile
+			retval_int=$?
+		fi
+		unmount_key
+	fi
+	if [ $retval_int -eq 0 ] ; then
+		echo "volume $Name is created"
+	fi
+	return $retval_int
+}
+
+function add_or_replace_key {
+	local -i retval_int=0 # success
+	local luks_dev=''
+	local -i attached_bool=0 # 0=false, 1=true
+	if mount_key ; then
+		if [ -n "$BlockFile" ] ; then
+			luks_dev=$(attach_blockfile) # /dev/loop0
+			if [ "$luks_dev" != 'ERROR'  ] ; then
+				attached_bool=1 # true
+			else
+				retval_int=1 # error
+			fi
+		else
+			luks_dev=$Device
+		fi
+		if [ $retval_int -eq 0 ] ; then
+			if ! create_temp_keyfile ; then
+				retval_int=1 # error
+			fi
+		fi
+		if  [ $retval_int -eq 0 ] ; then
+			#~ luksAddKey <device> --key-file existing_keyfile [new_keyfile] add a new key file/passphrase
+			#~ An existing passphrase or key file (via --key-file) must be supplied.
+			#~ The key file with the new material is supplied as a positional argument.
+			if [ -f "$KeyFile" ] ; then
+				echo "replacing key file"
+				if cryptsetup luksAddKey "$luks_dev"  --key-file "$KeyFile" "$(get_temp_keyfile)" ; then
+					echo "removing old key"
+					if ! cryptsetup luksRemoveKey "$luks_dev" "$KeyFile" ; then
+						echo "WARNING: failed to remove old key for $Name"
+					fi
+					echo "key replaced for $Name"
+				else
+					retval_int=1 # error
+				fi
+			else
+				echo "adding key file"
+				if cryptsetup luksAddKey "$luks_dev" "$(get_temp_keyfile)" ; then
+					echo "removing old passphrase (enter invalid value to preserve it)"
+					if ! cryptsetup luksRemoveKey "$luks_dev"  ; then
+						echo "WARNING: did not remove old key for $Name"
+					fi
+					echo "key added to $Name"
+				else
+					retval_int=1 # error
+				fi
+			fi
+		fi
+		if [ $attached_bool -eq 1 ] ; then
+			echo "detaching $BlockFile"
+			losetup -d "$luks_dev"
+		fi
+		if [ $retval_int -eq 0 ] ; then
+			validate_temp_keyfile
+			retval_int=$?
+		fi
+		unmount_key
+	else
+		retval_int=1 # error
+	fi
+	if [ $retval_int -eq 0 ] ; then
+		echo "key registration complete"
+	fi
+	return $retval_int
+}
+
+function mount_luks {
+	local -i retval_int=0 # success
+	local -i key_mounted_bool=0 # 0=false 1=true
+	if [ -n "$KeyDev" ] ; then
+		if mount_key ; then
+			key_mounted_bool=1
+			if ! [ -f "$KeyFile" ] ; then
+				echo "key file not found for $Name"
+				retval_int=1
+			fi
+		else
+			retval_int=1
+		fi
+	fi
+	if  [ $retval_int -eq 0 ] ; then
+		if [ "$(get_volume_status)" -eq $GVS_CLOSED ] ; then
+			local luks_dev=''
+			if  [ $retval_int -eq 0 ] ; then
+				if [ -n "$BlockFile" ] ; then
+					luks_dev=$(attach_blockfile) # /dev/loop0
+					if [ "$luks_dev" = 'ERROR'  ] ; then
+						retval_int=1
+					fi
+				else
+					luks_dev=$Device
+				fi
+			fi
+			if  [ $retval_int -eq 0 ] ; then
+				echo "opening $Name"
+				if [ -n "$KeyDev" ] ; then
+					cryptsetup open --type luks --key-file="$KeyFile" "$luks_dev" "$Name"
+				else
+					cryptsetup open --type luks "$luks_dev" "$Name"
+				fi
+				retval_int=$?
+				if [ $retval_int -eq 0 ] ; then
+					echo "mounting $Name"
+					mount "$LuksMap" "$LuksMountPoint"
+					retval_int=$?
+				fi
+			fi
+			
+		fi
+	fi
+	if [ $key_mounted_bool -eq 1 ] ; then
+		unmount_key
+	fi
+	print_info
+	return $retval_int
+}
+
+function unmount_luks {
+	local -i retval_int=0 # success
+	if [ "$(get_volume_status)" -ne $GVS_CLOSED ] ; then
+		echo "unmounting $Name"
+		if umount "$LuksMountPoint" ; then
+			# take a short nap after umount because sometimes cryptsetup close would fail
+			# with "device-mapper: remove ioctl on PRO  failed: Device or resource busy"
+			sleep 2
+		else
+			# list open files, if any
+			lsof +d "$LuksMountPoint" 2>/dev/nullretval_int=1
+			retval_int=1
+		fi
+		cryptsetup close "$LuksMap"
+		retval_int+=$?
+		if is_attached_loop_device ; then
+			local blockfile ; blockfile=$(losetup --output BACK-FILE --noheadings |grep "/$Name.dat")
+			echo "detaching $blockfile"
+			local  ; luks_dev=$(losetup -j "$blockfile" --output NAME --noheadings) # /dev/loop0
+			losetup -d "$luks_dev"
+			retval_int+=$?
+		fi
+	fi
+	print_info
+	return $retval_int
+}
+
+function print_info {
+	local -i status_int ; status_int=$(get_volume_status)
+	local open_text=''
+	case $status_int in
+	"$GVS_CLOSED") open_text="not mounted" ;;
+	"$GVS_MOUNTED") open_text="mounted at $LuksMountPoint" ;;
+	"$GVS_FAILED1") open_text="in bad open state #1 (luks open failed)" ;;
+	"$GVS_FAILED2") open_text="in bad open state #2 (filesystem mount failed)" ;;
+	esac
+	echo "$Name is $open_text"
+}
+
+function print_list {
+	local path=''
+	find /dev/mapper -type l -print0 |while IFS= read -r -d '' path
+	do
+		local mountpoint ; mountpoint="/mnt/$APPNAME/$(basename "$path")"
+		if [ -d "$mountpoint" ] ; then
+			echo "$mountpoint"
+		fi
+	done
+}
+
+function exec_action {
+	local -i retval_int=0 # success
+	case "$Action" in
+	c) 	if [ "$(get_volume_status)" -eq $GVS_CLOSED ] ; then
+			create_luks
+			retval_int=$?
+		else
+			echo "$Name is in use : unmount it before replacing it"
+			retval_int=1
+		fi
+		;;
+	a)	if [ "$(get_volume_status)" -eq $GVS_CLOSED ] ; then
+			add_or_replace_key
+			retval_int=$?
+		else
+			echo "$Name is in use : unmount it before adding/replacing a key"
+			retval_int=1
+		fi
+		;;
+	m) 	mount_luks ; retval_int=$? ;;
+	u)	unmount_luks ; retval_int=$? ;;
+	i)	print_info ; retval_int=0 ;;
+	l)	print_list ; retval_int=0 ;;
+	esac
+	return $retval_int
+}
+
+function usage {
+	echo "$APPNAME v$VERSION usage"
+	local n0="    $APPNAME"
+	echo "create volume in a block file (min size 20 MiB) or a device, optionally storing the key in a file:"
+	echo "$n0 -c name (-f folder -s size_MiB | -d device) [(-k keyfile_device | -K keyfile_disk_label)] -o owner_name "
+	echo "$n0 -c MYFILE -f /home/guest -s 256 -o guest"
+	echo "$n0 -c MYFILE -f /home/guest -s 256 -k /dev/sdb1 -o guest"
+	echo "$n0 -c MYDISK -d /dev/sda3 -o guest"
+	echo "$n0 -c MYDISK -d /dev/sda3 -o guest -K MYKEYS"
+	
+	echo "add or replace a key file (a new key file will be created):"
+	echo "$n0 -a name (-f folder | -d device) (-k keyfile_device | -K keyfile_disk_label)"
+	echo "$n0 -a MYFILE -f /home/guest -k /dev/sdb1"
+	echo "$n0 -a MYDISK -d /dev/sda3 -K MYKEYS"
+	
+	echo "mount volume (use option -k or -K to use key file):"
+	echo "$n0 -m name (-f folder | -d device) [(-k keyfile_device | -K keyfile_disk_label)]"
+	echo "$n0 -m MYFILE -f /home/guest"
+	echo "$n0 -m MYDISK -d /dev/sda3 -k /dev/sdb1"
+	echo "$n0 -m MYDISK -d /dev/sda3 -K MYKEYS"
+	
+	echo "unmount volume:"
+	echo "$n0 -u name"
+	echo "$n0 -u MYFILE"
+	echo "$n0 -u MYDISK"
+
+	echo "print volume information:"
+	echo "$n0 -i name"
+	echo "$n0 -i MYFILE"
+	echo "$n0 -i MYDISK"
+	
+	echo "list mounted volumes:"
+	echo "$n0 -l"
+}
+
+function check_args {
+	local -i retval_int=1 # error
+	if [ "$Action" = 'l' ] ; then
+		retval_int=0 # list takes no args
+	elif [ -n "$Name" ] ; then
+		# check required arguments
+		case "$Action" in
+		c) 	if [ -n "$Folder" ] && [ -z "$Device" ] && [ $Size -ge 20 ] && [ -n "$Owner" ] ; then retval_int=0 ; fi
+			if [ -n "$Device" ] && [ -z "$Folder" ] && [ -n "$Owner" ] ; then retval_int=0 ; fi
+			;;
+		a)	if [ -n "$Folder" ] && [ -z "$Device" ] && [ -n "$KeyDev" ] &&  [ -z "$KeyLabel" ] ; then retval_int=0 ; fi
+			if [ -n "$Folder" ] && [ -z "$Device" ] && [ -z "$KeyDev" ] &&  [ -n "$KeyLabel" ] ; then retval_int=0 ; fi
+			if [ -n "$Device" ] && [ -z "$Folder" ] && [ -n "$KeyDev" ] &&  [ -z "$KeyLabel" ] ; then retval_int=0 ; fi
+			if [ -n "$Device" ] && [ -z "$Folder" ] && [ -z "$KeyDev" ] &&  [ -n "$KeyLabel" ] ; then retval_int=0 ; fi
+			;;
+		m)	if [ -n "$Folder" ] && [ -z "$Device" ] ; then retval_int=0 ; fi
+			if [ -n "$Device" ] && [ -z "$Folder" ] ; then retval_int=0 ; fi
+			;;
+		u)	retval_int=0 ;;
+		i)	retval_int=0 ;;
+		esac
+		if [ $retval_int -eq 0 ] ; then
+			# check optional arguments -k -K
+			if [ -n "$KeyDev" ] && [ -n "$KeyLabel" ] ; then retval_int=1 ; fi
+			if [ -n "$KeyDev" ] || [ -n "$KeyLabel" ] ; then
+				if [ "$Action" = 'u' ] || [ "$Action" = 'i' ] ; then
+					retval_int=1
+				fi
+			fi
+		fi
+	fi
+	if [ $retval_int -ne 0 ] ; then 
+		echo "missing/extra/invalid arg"
+	else
+		if [ -n "$Folder" ] && ! [ -d "$Folder" ] ; then echo "folder $Folder not found" ; retval_int=2 ; fi
+		if [ -n "$Device" ] && ! [ -b "$Device" ] ; then echo "device $Device not found" ; retval_int=2 ; fi
+		if [ -n "$KeyDev" ] && ! [ -b "$KeyDev" ] ; then echo "device $KeyDev not found" ; retval_int=2 ; fi
+		if [ -n "$Owner" ] && ! id "$Owner" &>/dev/null ; then echo "user $Owner not found" ; retval_int=2 ; fi
+		if [ -n "$KeyLabel" ] ; then
+			# get_key_device() returns empty string if label not found
+			if [ -z "$(get_key_device)" ] ; then
+				echo "device not found with label $KeyLabel"
+				retval_int=2
+			fi
+		fi
+	fi
+	return $retval_int
+}
+
+# BEGIN ----------
+
+if [ "$(id -u)" != '0' ] ; then
+	echo "$APPNAME must run as root, run it with sudo $APPNAME"
+	exit 1
+fi
+
+# change to user's home dir in order to prevent errors like
+# "find: Failed to restore initial working directory: /mnt/sshfs/enigma:59607/home/rigou/bin/backup: Permission denied"
+# as a result, the -f folder option should specify an absolute path, or a path relative to the home dir
+if ! cd "/home/${SUDO_USER:-$USER}" ; then
+	echo "WARNING: working directory is $(pwd)"
+fi
+
+# Parse CLI options
+declare Action=''
+declare Name=''
+declare Folder=''
+declare -i Size=0
+declare Device=''
+declare Owner=''
+declare KeyDev=''
+declare KeyLabel=''
+if [ $# -ne 0 ] ; then
+	while getopts c:a:m:u:i:f:s:d:o:k:K:l option
+	do
+		case $option in
+		c | a | m | u | i ) Action=$option ; Name=$OPTARG ;;
+		l) Action=$option ; Name='' ;;
+		f) Folder=$OPTARG ;;
+		s) Size=$OPTARG ;;
+		d) Device=$OPTARG ;;
+		o) Owner=$OPTARG ;;
+		k) KeyDev=$OPTARG ;;
+		K) KeyLabel=$OPTARG ;;
+		*) usage ; exit 1;;
+		esac
+	done
+	shift $((OPTIND -1)) 
+else
+	usage
+	exit 1
+fi
+
+# Initializations
+declare -i Exitval=0
+if [ -n "$Name" ] ; then # the list action takes no args, hence Name is empty
+	readonly KeyMountPoint="/tmp/$APPNAME"
+	readonly LuksMountPoint="/mnt/$APPNAME/$Name"
+	readonly LuksMap="/dev/mapper/$Name"
+	declare BlockFile=''
+	declare KeyFile=''
+fi
+if check_args ; then
+	if [ -n "$Name" ] ; then
+		KeyDev=$(get_key_device) # if option -K then use device from label else use device given by option -k
+		if [ -n "$KeyDev" ] ; then 
+			KeyFile="$KeyMountPoint/$APPNAME/$Name.key"
+			mkdir -p "$KeyMountPoint"
+		fi
+		if [ -n "$Folder" ] ; then
+			BlockFile="$Folder/$Name.dat"
+		fi
+		if ! [ -d "$LuksMountPoint" ] ; then
+			mkdir -p "$LuksMountPoint"
+		fi
+	fi
+	exec_action
+	Exitval=$?
+	
+	# final cleanup
+	if [ -n "$Name" ] ; then
+		if [ -n "$KeyDev" ] ; then
+			rmdir "$KeyMountPoint"
+		fi
+		if [ "$(get_volume_status)" != $GVS_MOUNTED ] ; then
+			rmdir "$LuksMountPoint" 
+		fi
+	fi
+	exit $Exitval
+else
+	exit 1
+fi
