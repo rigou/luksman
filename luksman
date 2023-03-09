@@ -1,13 +1,9 @@
 #!/bin/bash
-# prerequisites : apt install cryptsetup-bin
-# installation: see README.txt
+# prerequisites, installation: see README.md
 # run this script as root (sudo)
 
-# Main Repository : /mnt/node2/lv_dev/Projects/luksman/
-# Reference documentation : /mnt/node2/lv_doc/Documentation_technique/Doc_Linux/Encryption with Luks/
-
 readonly APPNAME='luksman'
-readonly VERSION='1.2.1'
+readonly VERSION='1.2.2'
 
 function get_key_device {
 	local keydev_from_label=''
@@ -430,7 +426,7 @@ function exec_action {
 function usage {
 	echo "$APPNAME v$VERSION usage"
 	local n0="    $APPNAME"
-	echo "create volume in a block file (min size 20 MiB) or a device, optionally storing the key in a file:"
+	echo "create volume in a file container (min size 20 MiB) or a device, optionally storing the key in a file:"
 	echo "$n0 -c name (-f folder -s size_MiB | -d device) [(-k keyfile_device | -K keyfile_disk_label)] -o owner_name "
 	echo "$n0 -c MYFILE -f /home/guest -s 256 -o guest"
 	echo "$n0 -c MYFILE -f /home/guest -s 256 -k /dev/sdb1 -o guest"
