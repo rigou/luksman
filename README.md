@@ -48,32 +48,74 @@ sudo luksman action [volume_name [options]]
 * -k path of the block device corresponding to the disk partition where the key file will be / is located
 * -K label of the filesystem where the key file will be / is located
 
-
-### 1. Create an encrypted volume in a file container or in a disk partition, optionally storing the key in a file:
+### 1. Create an encrypted volume in a file container or in a disk partition, optionally storing the key in a file :
 ```
 sudo luksman -c name (-f folder -s size_MiB | -d device) [(-k keyfile_device | -K keyfile_disk_label)] -o owner_name
 ```
-**1.1 Example: create a 256 MiB encrypted volume in a file container named MYFILE in the folder /home/guest, prompting user to enter a passphrase :**
+* option -o is required, it specifies the owner of the filesystem
+* when using option -d, the current contents of the partition will be lost ; use ``lsblk`` to double-check the device name
+* when using option -f, the file container will be created in the specified folder with the given name and the ".dat" extension
+* when using option -k or -K, the key file will be created in the "/luksman" folder of the specified device with the given name and the ".key" extension
+
+<details><summary>Examples</summary>
+
+**1.1 Example: create a 256 MiB encrypted volume in a file container named MYFILE in the folder /home/guest, prompting user for a passphrase :**
 ```
 luksman -c MYFILE -f /home/guest -s 256 -o guest
 ```
-**1.2 Example: create a 256 MiB encrypted volume in a file container named MYFILE, store it in the folder /home/guest, generate a random key and write it in a keyfile located in the usb flash drive at /dev/sdb1 :**
+**1.2 Example: create a 256 MiB encrypted volume in a file container named MYFILE, store it in the folder /home/guest, generate a random key and write it in a key file located in the usb flash drive labeled MYKEYS :**
+```
+luksman -c MYFILE -f /home/guest -s 256 -K MYKEYS -o guest
+```
+**1.3 Example: create a 256 MiB encrypted volume in a file container named MYFILE, store it in the folder /home/guest, generate a random key and write it in a key file located in the usb flash drive at /dev/sdb1 :**
 ```
 luksman -c MYFILE -f /home/guest -s 256 -k /dev/sdb1 -o guest
 ```
+**1.4 Example: create an encrypted volume in the disk partition /dev/sda3, prompting user for a passphrase :**
 ```
-luksman -c MYDISK -d /dev/sda3 -o guest
+luksman -c MYFILE -d /dev/sda3 -o guest
 ```
+**1.5 Example: create an encrypted volume in the disk partition /dev/sda3, generate a random key and write it in a key file located in the usb flash drive labeled MYKEYS :**
 ```
-luksman -c MYDISK -d /dev/sda3 -o guest -K MYKEYS
+luksman -c MYFILE -d /dev/sda3 -K MYKEYS -o guest
 ```
+**1.6 Example: create an encrypted volume in the disk partition /dev/sda3, generate a random key and write it in a key file located in the usb flash drive at /dev/sdb1 :**
+```
+luksman -c MYFILE -d /dev/sda3 -k /dev/sdb1 -o guest
+```
+</details>
 
-add or replace a key file (a new key file will be created):
+
+### 2. Add or replace a key file :
+```
 luksman -a name (-f folder | -d device) (-k keyfile_device | -K keyfile_disk_label)
-luksman -a MYFILE -f /home/guest -k /dev/sdb1
-luksman -a MYDISK -d /dev/sda3 -K MYKEYS
+```
+* use this command to change the key of an encrypted volume
+* this command generates a new key and writes it in a key file, the existing key will be revoked and the key file will be replaced
+* if the volume was created using a passphrase, a key file will be added and the passphrase will be revoked
+* the key file will be created in the "/luksman" folder of the specified device with the given name and the ".key" extension
 
-mount volume (use option -k or -K to use key file):
+<details><summary>Examples</summary>
+
+**2.1 Example: add or replace the key file of the encrypted volume named MYFILE in the folder /home/guest, and write this key file in the usb flash drive labeled MYKEYS :**
+```
+luksman -a MYFILE -f /home/guest -K MYKEYS
+```
+**2.2 Example: add or replace the key file of the encrypted volume in the disk partition /dev/sda3, and write this key file in the usb flash drive labeled MYKEYS :**
+```
+luksman -a MYDISK -d /dev/sda3 -K MYKEYS
+```
+**2.3 Example: add or replace the key file of the encrypted volume named MYFILE in the folder /home/guest, and write this key file in the usb flash drive at /dev/sdb1 :**
+```
+luksman -a MYFILE -f /home/guest -k /dev/sdb1
+```
+**2.4 Example: add or replace the key file of the encrypted volume in the disk partition /dev/sda3, and write this key file in the usb flash drive labeled at /dev/sdb1 :**
+```
+luksman -a MYDISK -d /dev/sda3 -k /dev/sdb1
+```
+</details>
+
+### 3. Mount volume (use option -k or -K to use key file):
 luksman -m name (-f folder | -d device) [(-k keyfile_device | -K keyfile_disk_label)]
 luksman -m MYFILE -f /home/guest
 luksman -m MYDISK -d /dev/sda3 -k /dev/sdb1
