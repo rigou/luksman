@@ -1,5 +1,4 @@
 #!/bin/bash
-# 2023-03-09
 
 readonly KeyDev='/dev/sdb1'
 readonly KeyLabel='LUKSMANKEY'
@@ -83,7 +82,7 @@ print_line
 ./luksman -c $Dname -d $BlockDev -o $User
 if [ $? -ne 0 ] ; then exit_error ; fi
 print_line
-echo "TEST WITH PASSWORD"
+echo "TEST WITH PASSPHRASE"
 print_line
 ./luksman -m $Dname -d $BlockDev 
 if [ $? -ne 0 ] ; then exit_error ; fi

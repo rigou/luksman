@@ -369,7 +369,7 @@ function unmount_luks {
 		if is_attached_loop_device ; then
 			local blockfile ; blockfile=$(losetup --output BACK-FILE --noheadings |grep "/$Name.dat")
 			echo "detaching $blockfile"
-			local  ; luks_dev=$(losetup -j "$blockfile" --output NAME --noheadings) # /dev/loop0
+			local luks_dev ; luks_dev=$(losetup -j "$blockfile" --output NAME --noheadings) # /dev/loop0
 			losetup -d "$luks_dev"
 			retval_int+=$?
 		fi

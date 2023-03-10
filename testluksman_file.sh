@@ -1,5 +1,4 @@
 #!/bin/bash
-# 2023-03-09
 
 readonly LocalDir='/home/rigou'
 readonly KeyDev='/dev/sdb1'
@@ -66,7 +65,7 @@ print_line
 ./luksman -c $Fname -f $LocalDir -s 40 -o $User
 if [ $? -ne 0 ] ; then exit_error ; fi
 print_line
-echo "TEST WITH PASSWORD"
+echo "TEST WITH PASSPHRASE"
 print_line
 ./luksman -m $Fname -f $LocalDir 
 if [ $? -ne 0 ] ; then exit_error ; fi
