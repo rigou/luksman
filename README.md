@@ -48,7 +48,7 @@ sudo luksman action [volume_name [options]]
 * -k path of the block device corresponding to the disk partition where the key file will be / is located
 * -K label of the filesystem where the key file will be / is located
 
-### 1. Create an encrypted volume :
+### 1. Create an encrypted volume
 ```
 sudo luksman -c name (-f folder -s size_MiB | -d device) [(-k keyfile_device | -K keyfile_disk_label)] -o owner_name
 ```
@@ -86,7 +86,7 @@ luksman -c CLASSIFIED -d /dev/sda3 -k /dev/sdb1 -o guest
 </details>
 
 
-### 2. Add or replace a key file :
+### 2. Add or replace a key file
 ```
 luksman -a name (-f folder | -d device) (-k keyfile_device | -K keyfile_disk_label)
 ```
@@ -115,7 +115,7 @@ luksman -a CLASSIFIED -d /dev/sda3 -k /dev/sdb1
 ```
 </details>
 
-### 3. Mount an encrypted volume :
+### 3. Mount an encrypted volume
 ```
 luksman -m name (-f folder | -d device) [(-k keyfile_device | -K keyfile_disk_label)]
 ```
@@ -152,7 +152,7 @@ luksman -m CLASSIFIED -d /dev/sda3 -k /dev/sdb1
 ```
 </details>
 
-### 4. Unmount an encrypted volume :
+### 4. Unmount an encrypted volume
 ```
 luksman -u name
 ```
@@ -166,7 +166,7 @@ luksman -u CLASSIFIED
 ```
 </details>
 
-### 5. Print encrypted volume information :
+### 5. Print encrypted volume information
 ```
 luksman -i name
 ```
@@ -181,7 +181,7 @@ luksman -i CLASSIFIED
 ```
 </details>
 
-### 6. List mounted volumes :
+### 6. List mounted volumes
 ```
 luksman -l
 ```
