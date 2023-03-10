@@ -48,7 +48,7 @@ sudo luksman action [volume_name [options]]
 * -k path of the block device corresponding to the disk partition where the key file will be / is located
 * -K label of the filesystem where the key file will be / is located
 
-### 1. Create an encrypted volume in a file container or in a disk partition, optionally storing the key in a file :
+### 1. Create an encrypted volume :
 ```
 sudo luksman -c name (-f folder -s size_MiB | -d device) [(-k keyfile_device | -K keyfile_disk_label)] -o owner_name
 ```
@@ -57,31 +57,31 @@ sudo luksman -c name (-f folder -s size_MiB | -d device) [(-k keyfile_device | -
 * when using option -f, the file container will be created in the specified folder with the given name and the ".dat" extension
 * when using option -k or -K, the key file will be created in the "/luksman" folder of the specified device with the given name and the ".key" extension
 
-<details><summary>Examples</summary>
+<details><summary>click here to see some examples</summary>
 
-**1.1 Example: create a 256 MiB encrypted volume in a file container named MYFILE in the folder /home/guest, prompting user for a passphrase :**
+**1.1 Example: create a 256 MiB encrypted volume in a file container named CLASSIFIED in the folder /home/guest, prompting user for a passphrase :**
 ```
-luksman -c MYFILE -f /home/guest -s 256 -o guest
+luksman -c CLASSIFIED -f /home/guest -s 256 -o guest
 ```
-**1.2 Example: create a 256 MiB encrypted volume in a file container named MYFILE, store it in the folder /home/guest, generate a random key and write it in a key file located in the usb flash drive labeled MYKEYS :**
+**1.2 Example: create a 256 MiB encrypted volume in a file container named CLASSIFIED, store it in the folder /home/guest, generate a random key and write it in a key file located in the usb flash drive labeled MYKEYS :**
 ```
-luksman -c MYFILE -f /home/guest -s 256 -K MYKEYS -o guest
+luksman -c CLASSIFIED -f /home/guest -s 256 -K MYKEYS -o guest
 ```
-**1.3 Example: create a 256 MiB encrypted volume in a file container named MYFILE, store it in the folder /home/guest, generate a random key and write it in a key file located in the usb flash drive at /dev/sdb1 :**
+**1.3 Example: create a 256 MiB encrypted volume in a file container named CLASSIFIED, store it in the folder /home/guest, generate a random key and write it in a key file located in the usb flash drive at /dev/sdb1 :**
 ```
-luksman -c MYFILE -f /home/guest -s 256 -k /dev/sdb1 -o guest
+luksman -c CLASSIFIED -f /home/guest -s 256 -k /dev/sdb1 -o guest
 ```
 **1.4 Example: create an encrypted volume in the disk partition /dev/sda3, prompting user for a passphrase :**
 ```
-luksman -c MYFILE -d /dev/sda3 -o guest
+luksman -c CLASSIFIED -d /dev/sda3 -o guest
 ```
 **1.5 Example: create an encrypted volume in the disk partition /dev/sda3, generate a random key and write it in a key file located in the usb flash drive labeled MYKEYS :**
 ```
-luksman -c MYFILE -d /dev/sda3 -K MYKEYS -o guest
+luksman -c CLASSIFIED -d /dev/sda3 -K MYKEYS -o guest
 ```
 **1.6 Example: create an encrypted volume in the disk partition /dev/sda3, generate a random key and write it in a key file located in the usb flash drive at /dev/sdb1 :**
 ```
-luksman -c MYFILE -d /dev/sda3 -k /dev/sdb1 -o guest
+luksman -c CLASSIFIED -d /dev/sda3 -k /dev/sdb1 -o guest
 ```
 </details>
 
@@ -95,41 +95,104 @@ luksman -a name (-f folder | -d device) (-k keyfile_device | -K keyfile_disk_lab
 * if the volume was created using a passphrase, a key file will be added and the passphrase will be revoked
 * the key file will be created in the "/luksman" folder of the specified device with the given name and the ".key" extension
 
-<details><summary>Examples</summary>
+<details><summary>click here to see some examples</summary>
 
-**2.1 Example: add or replace the key file of the encrypted volume named MYFILE in the folder /home/guest, and write this key file in the usb flash drive labeled MYKEYS :**
+**2.1 Example: add or replace the key file of the encrypted volume named CLASSIFIED in the folder /home/guest, and write this key file in the usb flash drive labeled MYKEYS :**
 ```
-luksman -a MYFILE -f /home/guest -K MYKEYS
+luksman -a CLASSIFIED -f /home/guest -K MYKEYS
 ```
 **2.2 Example: add or replace the key file of the encrypted volume in the disk partition /dev/sda3, and write this key file in the usb flash drive labeled MYKEYS :**
 ```
-luksman -a MYDISK -d /dev/sda3 -K MYKEYS
+luksman -a CLASSIFIED -d /dev/sda3 -K MYKEYS
 ```
-**2.3 Example: add or replace the key file of the encrypted volume named MYFILE in the folder /home/guest, and write this key file in the usb flash drive at /dev/sdb1 :**
+**2.3 Example: add or replace the key file of the encrypted volume named CLASSIFIED in the folder /home/guest, and write this key file in the usb flash drive at /dev/sdb1 :**
 ```
-luksman -a MYFILE -f /home/guest -k /dev/sdb1
+luksman -a CLASSIFIED -f /home/guest -k /dev/sdb1
 ```
 **2.4 Example: add or replace the key file of the encrypted volume in the disk partition /dev/sda3, and write this key file in the usb flash drive labeled at /dev/sdb1 :**
 ```
-luksman -a MYDISK -d /dev/sda3 -k /dev/sdb1
+luksman -a CLASSIFIED -d /dev/sda3 -k /dev/sdb1
 ```
 </details>
 
-### 3. Mount volume (use option -k or -K to use key file):
+### 3. Mount an encrypted volume :
+```
 luksman -m name (-f folder | -d device) [(-k keyfile_device | -K keyfile_disk_label)]
-luksman -m MYFILE -f /home/guest
-luksman -m MYDISK -d /dev/sda3 -k /dev/sdb1
-luksman -m MYDISK -d /dev/sda3 -K MYKEYS
+```
+* if the volume was created using a passphrase, user will be prompted for it
+* if there is a key file for this volume in the device specified by option -k or -K, it will be used to mount the encrypted volume automatically
+* after mounting the volume, the device specified by option -k or -K is inactive and can be removed
+* the mountpoint of volume "name" is /mnt/luksman/name
 
-unmount volume:
+<details><summary>click here to see some examples</summary>
+
+**3.1 Example: mount the encrypted volume named CLASSIFIED located in the folder /home/guest, prompting user for a passphrase :**
+```
+luksman -m CLASSIFIED -f /home/guest
+```
+**3.2 Example: mount the encrypted volume named CLASSIFIED located in the folder /home/guest, using a key file in the usb flash drive labeled MYKEYS :**
+```
+luksman -m CLASSIFIED -f /home/guest -K MYKEYS
+```
+**3.3 Example: mount the encrypted volume named CLASSIFIED located in the folder /home/guest, using a key file in the usb flash drive at /dev/sdb1 :**
+```
+luksman -m CLASSIFIED -f /home/guest -k /dev/sdb1
+```
+**3.4 Example: mount the encrypted volume located in the disk partition /dev/sda3, prompting user for a passphrase :**
+```
+luksman -m CLASSIFIED -d /dev/sda3
+```
+**3.5 Example: mount the encrypted volume located in the disk partition /dev/sda3, using a key file in the usb flash drive labeled MYKEYS :**
+```
+luksman -m CLASSIFIED -d /dev/sda3 -K MYKEYS
+```
+**3.6 Example: mount the encrypted volume located in the disk partition /dev/sda3, using a key file in the usb flash drive at /dev/sdb1 :**
+```
+luksman -m CLASSIFIED -d /dev/sda3 -k /dev/sdb1
+```
+</details>
+
+### 4. Unmount an encrypted volume :
+```
 luksman -u name
-luksman -u MYFILE
-luksman -u MYDISK
+```
+* the same command applies to all encrypted volumes, either located in a file container or in a disk partition
 
-print volume information:
+<details><summary>click here to see an example</summary>
+
+**Example:** 
+```
+luksman -u CLASSIFIED
+```
+</details>
+
+### 5. Print encrypted volume information :
+```
 luksman -i name
-luksman -i MYFILE
-luksman -i MYDISK
+```
+* this command prints the mount state of given encrypted volume
 
-list mounted volumes:
+<details><summary>click here to see an example</summary>
+
+**Example:** 
+```
+luksman -i CLASSIFIED
+-> CLASSIFIED is mounted at /mnt/luksman/CLASSIFIED
+```
+</details>
+
+### 6. List mounted volumes :
+```
 luksman -l
+```
+* this command prints the mountpoints of all currently mounted encrypted volumes
+
+<details><summary>click here to see an example</summary>
+
+**Example:** 
+```
+luksman -l
+-> /mnt/luksman/CLASSIFIED
+-> /mnt/luksman/CONFIDENTIAL
+```
+</details>
