@@ -1,6 +1,14 @@
 #!/bin/bash
-# prerequisites, installation: see README.md
-# run this script as root (sudo)
+# luksman : a simple manager for LUKS encrypted volumes
+# download the latest version of this program at https://github.com/rigou/luksman
+#
+# This program is free software: you can redistribute it and/or modify it under the terms
+# of the GNU General Public License as published by the Free Software Foundation, version 3.
+# This program is distributed in the hope that it will be useful, but WITHOUT ANY WARRANTY.
+# See the GNU General Public License for more details https://www.gnu.org/licenses/#GPL 
+#
+# Prerequisites, installation, usage : see README.md
+# Run this script as root (sudo)
 
 readonly APPNAME='luksman'
 readonly VERSION='1.2.2'
@@ -147,8 +155,8 @@ function create_luks {
 	local -i attached_bool=0 # 0=false, 1=true
 	if [ -n "$BlockFile" ] ; then
 		if ! [ -f "$BlockFile" ] ; then
-			echo "sizing $BlockFile to $Size MiB"
-			if dd if=/dev/zero of="$BlockFile" bs=1M count=$Size ; then
+			echo "overwriting $BlockFile with $Size MiB random data"
+			if dd if=/dev/urandom of="$BlockFile" bs=1M count=$Size ; then
 				echo "assigning $BlockFile to $Owner"
 				chown "$Owner": "$BlockFile"
 				luks_dev=$(attach_blockfile) # /dev/loop0
@@ -426,46 +434,29 @@ function exec_action {
 function usage {
 	echo "$APPNAME v$VERSION usage"
 	local n0="    $APPNAME"
-	echo "create volume in a file container (min size 20 MiB) or a device, optionally storing the key in a file:"
+	echo "create volume in a file container or a device, optionally storing the key in a file"
 	echo "$n0 -c name (-f folder -s size_MiB | -d device) [(-k keyfile_device | -K keyfile_disk_label)] -o owner_name "
-	echo "$n0 -c MYFILE -f /home/guest -s 256 -o guest"
-	echo "$n0 -c MYFILE -f /home/guest -s 256 -k /dev/sdb1 -o guest"
-	echo "$n0 -c MYDISK -d /dev/sda3 -o guest"
-	echo "$n0 -c MYDISK -d /dev/sda3 -o guest -K MYKEYS"
-	
-	echo "add or replace a key file (a new key file will be created):"
+	echo "add or replace a key file"
 	echo "$n0 -a name (-f folder | -d device) (-k keyfile_device | -K keyfile_disk_label)"
-	echo "$n0 -a MYFILE -f /home/guest -k /dev/sdb1"
-	echo "$n0 -a MYDISK -d /dev/sda3 -K MYKEYS"
-	
-	echo "mount volume (use option -k or -K to use key file):"
+	echo "mount volume"
 	echo "$n0 -m name (-f folder | -d device) [(-k keyfile_device | -K keyfile_disk_label)]"
-	echo "$n0 -m MYFILE -f /home/guest"
-	echo "$n0 -m MYDISK -d /dev/sda3 -k /dev/sdb1"
-	echo "$n0 -m MYDISK -d /dev/sda3 -K MYKEYS"
-	
-	echo "unmount volume:"
+	echo "unmount volume"
 	echo "$n0 -u name"
-	echo "$n0 -u MYFILE"
-	echo "$n0 -u MYDISK"
-
-	echo "print volume information:"
+	echo "print volume information"
 	echo "$n0 -i name"
-	echo "$n0 -i MYFILE"
-	echo "$n0 -i MYDISK"
-	
-	echo "list mounted volumes:"
+	echo "list mounted volumes"
 	echo "$n0 -l"
 }
 
 function check_args {
 	local -i retval_int=1 # error
+	local -ri VOLUME_MIN_SIZE=17 # because LUKS takes a 16 MiB overhead
 	if [ "$Action" = 'l' ] ; then
 		retval_int=0 # list takes no args
 	elif [ -n "$Name" ] ; then
 		# check required arguments
 		case "$Action" in
-		c) 	if [ -n "$Folder" ] && [ -z "$Device" ] && [ $Size -ge 20 ] && [ -n "$Owner" ] ; then retval_int=0 ; fi
+		c) 	if [ -n "$Folder" ] && [ -z "$Device" ] && [ $Size -ge $VOLUME_MIN_SIZE ] && [ -n "$Owner" ] ; then retval_int=0 ; fi
 			if [ -n "$Device" ] && [ -z "$Folder" ] && [ -n "$Owner" ] ; then retval_int=0 ; fi
 			;;
 		a)	if [ -n "$Folder" ] && [ -z "$Device" ] && [ -n "$KeyDev" ] &&  [ -z "$KeyLabel" ] ; then retval_int=0 ; fi
