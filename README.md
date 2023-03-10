@@ -42,7 +42,7 @@ sudo luksman action [volume_name [options]]
 
 **Options :**
 * -d path of the block device corresponding to the disk partition where the encrypted volume will be / is located
-* -f path of the folder where the file container will be / is located
+* -f path of the folder where the file container will be / is located. An absolute path is recommended ; a relative path will be interpreted as relative to your home directory
 * -s size of the file container which will be created, in MiB (min size 20 MiB)
 * -o logname of the owner of the filesystem which will be created in the encrypted volume
 * -k path of the block device corresponding to the disk partition where the key file will be / is located
@@ -156,7 +156,7 @@ luksman -m CLASSIFIED -d /dev/sda3 -k /dev/sdb1
 ```
 luksman -u name
 ```
-* the same command applies to all encrypted volumes, either located in a file container or in a disk partition
+this command applies to any encrypted volume, either located in a file container or in a disk partition
 
 <details><summary>click here to see an example</summary>
 
@@ -170,7 +170,7 @@ luksman -u CLASSIFIED
 ```
 luksman -i name
 ```
-* this command prints the mount state of given encrypted volume
+this command prints the mount state of given encrypted volume
 
 <details><summary>click here to see an example</summary>
 
@@ -185,7 +185,7 @@ luksman -i CLASSIFIED
 ```
 luksman -l
 ```
-* this command prints the mountpoints of all currently mounted encrypted volumes
+this command prints the mountpoints of all currently mounted encrypted volumes
 
 <details><summary>click here to see an example</summary>
 
