@@ -81,7 +81,7 @@ function unmount_key {
 	return $retval_int
 }
 
-# Tells if given volume name corresponds to an attached loop device
+# Tell if given volume name corresponds to an attached loop device
 # Return value: 0=attached, 1=not attached or not a loop device
 function is_attached_loop_device {
 	local -i retval_int ; retval_int=$(losetup --output BACK-FILE --noheadings |grep -c "/$Name.dat")
@@ -258,9 +258,6 @@ function add_or_replace_key {
 			fi
 		fi
 		if  [ $retval_int -eq 0 ] ; then
-			#~ luksAddKey <device> --key-file existing_keyfile [new_keyfile] add a new key file/passphrase
-			#~ An existing passphrase or key file (via --key-file) must be supplied.
-			#~ The key file with the new material is supplied as a positional argument.
 			if [ -f "$KeyFile" ] ; then
 				echo "replacing key file"
 				if cryptsetup luksAddKey "$luks_dev"  --key-file "$KeyFile" "$(get_temp_keyfile)" ; then

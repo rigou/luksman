@@ -1,6 +1,6 @@
 # luksman
 **A simple manager for LUKS encrypted volumes**\
-I made luksman because I wanted a quick and easy way to create, mount and unmount encrypted storage in my Linux workstation. These operations require several arcane commands involving losetup, cryptsetup and filesystem management commands and I was tired to read the corresponding man pages everytime I needed a new encrypted volume. 
+I made luksman because I wanted a quick and easy way to create, mount and unmount encrypted storage in my GNU/Linux computer. These operations require several arcane commands involving losetup, cryptsetup and filesystem management commands and I was tired to read the corresponding man pages everytime I needed a new encrypted volume. 
 With luksman I can do everything with a single command and some easy to remember options.
 
 Main Repository : https://github.com/rigou/luksman
