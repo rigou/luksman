@@ -1,11 +1,9 @@
 # luksman
 **A simple manager for LUKS encrypted volumes**\
 I made luksman because I wanted a quick and easy way to create, mount and unmount encrypted storage in my Linux workstation. These operations require several arcane commands involving losetup, cryptsetup and filesystem management commands and I was tired to have to read the corresponding man pages everytime I needed a new encrypted volume. 
-With luksman I can do everything with a simple command, with some easy to remember options.
+With luksman I can do everything with a single command, with some easy to remember options.
 
 Main Repository : https://github.com/rigou/luksman
-
-Prerequisites : apt install cryptsetup-bin
 
 ## Features
 * you can create / mount / unmount LUKS encrypted volumes with a single command
@@ -17,6 +15,8 @@ Prerequisites : apt install cryptsetup-bin
 These operations are all I needed in my use case, so I did not implement anything else to keep things simple. If your requirements are more complex, you can still use cryptsetup on the encrypted volumes and do whatever you want.
 
 ## Installation
+Install the required package ``cryptsetup-bin``
+
 Download source code of latest release at https://github.com/rigou/luksman/releases
 ```
 tar xzf luksman_vx.y.z.tar.gz
