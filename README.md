@@ -59,27 +59,27 @@ sudo luksman -c name (-f folder -s size_MiB | -d device) [(-k keyfile_device | -
 
 <details><summary>click here to see some examples</summary>
 
-**1.1 Example: create a 256 MiB encrypted volume in a file container named CLASSIFIED in the folder /home/guest, prompting user for a passphrase :**
+**Create a 256 MiB encrypted volume in a file container named CLASSIFIED in the folder /home/guest, prompting user for a passphrase :**
 ```
 luksman -c CLASSIFIED -f /home/guest -s 256 -o guest
 ```
-**1.2 Example: create a 256 MiB encrypted volume in a file container named CLASSIFIED, store it in the folder /home/guest, generate a random key and write it in a key file located in the usb flash drive labeled MYKEYS :**
+**Create a 256 MiB encrypted volume in a file container named CLASSIFIED, store it in the folder /home/guest, generate a random key and write it in a key file located in the usb flash drive labeled MYKEYS :**
 ```
 luksman -c CLASSIFIED -f /home/guest -s 256 -K MYKEYS -o guest
 ```
-**1.3 Example: create a 256 MiB encrypted volume in a file container named CLASSIFIED, store it in the folder /home/guest, generate a random key and write it in a key file located in the usb flash drive at /dev/sdb1 :**
+**Create a 256 MiB encrypted volume in a file container named CLASSIFIED, store it in the folder /home/guest, generate a random key and write it in a key file located in the usb flash drive at /dev/sdb1 :**
 ```
 luksman -c CLASSIFIED -f /home/guest -s 256 -k /dev/sdb1 -o guest
 ```
-**1.4 Example: create an encrypted volume in the disk partition /dev/sda3, prompting user for a passphrase :**
+**Create an encrypted volume in the disk partition /dev/sda3, prompting user for a passphrase :**
 ```
 luksman -c CLASSIFIED -d /dev/sda3 -o guest
 ```
-**1.5 Example: create an encrypted volume in the disk partition /dev/sda3, generate a random key and write it in a key file located in the usb flash drive labeled MYKEYS :**
+**Create an encrypted volume in the disk partition /dev/sda3, generate a random key and write it in a key file located in the usb flash drive labeled MYKEYS :**
 ```
 luksman -c CLASSIFIED -d /dev/sda3 -K MYKEYS -o guest
 ```
-**1.6 Example: create an encrypted volume in the disk partition /dev/sda3, generate a random key and write it in a key file located in the usb flash drive at /dev/sdb1 :**
+**Create an encrypted volume in the disk partition /dev/sda3, generate a random key and write it in a key file located in the usb flash drive at /dev/sdb1 :**
 ```
 luksman -c CLASSIFIED -d /dev/sda3 -k /dev/sdb1 -o guest
 ```
@@ -97,19 +97,19 @@ luksman -a name (-f folder | -d device) (-k keyfile_device | -K keyfile_disk_lab
 
 <details><summary>click here to see some examples</summary>
 
-**2.1 Example: add or replace the key file of the encrypted volume named CLASSIFIED in the folder /home/guest, and write this key file in the usb flash drive labeled MYKEYS :**
+**Add or replace the key file of the encrypted volume named CLASSIFIED in the folder /home/guest, and write this key file in the usb flash drive labeled MYKEYS :**
 ```
 luksman -a CLASSIFIED -f /home/guest -K MYKEYS
 ```
-**2.2 Example: add or replace the key file of the encrypted volume in the disk partition /dev/sda3, and write this key file in the usb flash drive labeled MYKEYS :**
+**Add or replace the key file of the encrypted volume in the disk partition /dev/sda3, and write this key file in the usb flash drive labeled MYKEYS :**
 ```
 luksman -a CLASSIFIED -d /dev/sda3 -K MYKEYS
 ```
-**2.3 Example: add or replace the key file of the encrypted volume named CLASSIFIED in the folder /home/guest, and write this key file in the usb flash drive at /dev/sdb1 :**
+**Add or replace the key file of the encrypted volume named CLASSIFIED in the folder /home/guest, and write this key file in the usb flash drive at /dev/sdb1 :**
 ```
 luksman -a CLASSIFIED -f /home/guest -k /dev/sdb1
 ```
-**2.4 Example: add or replace the key file of the encrypted volume in the disk partition /dev/sda3, and write this key file in the usb flash drive labeled at /dev/sdb1 :**
+**Add or replace the key file of the encrypted volume in the disk partition /dev/sda3, and write this key file in the usb flash drive labeled at /dev/sdb1 :**
 ```
 luksman -a CLASSIFIED -d /dev/sda3 -k /dev/sdb1
 ```
@@ -126,27 +126,27 @@ luksman -m name (-f folder | -d device) [(-k keyfile_device | -K keyfile_disk_la
 
 <details><summary>click here to see some examples</summary>
 
-**3.1 Example: mount the encrypted volume named CLASSIFIED located in the folder /home/guest, prompting user for a passphrase :**
+**Mount the encrypted volume named CLASSIFIED located in the folder /home/guest, prompting user for a passphrase :**
 ```
 luksman -m CLASSIFIED -f /home/guest
 ```
-**3.2 Example: mount the encrypted volume named CLASSIFIED located in the folder /home/guest, using a key file in the usb flash drive labeled MYKEYS :**
+**Mount the encrypted volume named CLASSIFIED located in the folder /home/guest, using a key file in the usb flash drive labeled MYKEYS :**
 ```
 luksman -m CLASSIFIED -f /home/guest -K MYKEYS
 ```
-**3.3 Example: mount the encrypted volume named CLASSIFIED located in the folder /home/guest, using a key file in the usb flash drive at /dev/sdb1 :**
+**Mount the encrypted volume named CLASSIFIED located in the folder /home/guest, using a key file in the usb flash drive at /dev/sdb1 :**
 ```
 luksman -m CLASSIFIED -f /home/guest -k /dev/sdb1
 ```
-**3.4 Example: mount the encrypted volume located in the disk partition /dev/sda3, prompting user for a passphrase :**
+**Mount the encrypted volume located in the disk partition /dev/sda3, prompting user for a passphrase :**
 ```
 luksman -m CLASSIFIED -d /dev/sda3
 ```
-**3.5 Example: mount the encrypted volume located in the disk partition /dev/sda3, using a key file in the usb flash drive labeled MYKEYS :**
+**Mount the encrypted volume located in the disk partition /dev/sda3, using a key file in the usb flash drive labeled MYKEYS :**
 ```
 luksman -m CLASSIFIED -d /dev/sda3 -K MYKEYS
 ```
-**3.6 Example: mount the encrypted volume located in the disk partition /dev/sda3, using a key file in the usb flash drive at /dev/sdb1 :**
+**Mount the encrypted volume located in the disk partition /dev/sda3, using a key file in the usb flash drive at /dev/sdb1 :**
 ```
 luksman -m CLASSIFIED -d /dev/sda3 -k /dev/sdb1
 ```
@@ -160,7 +160,6 @@ this command applies to any encrypted volume, either located in a file container
 
 <details><summary>click here to see an example</summary>
 
-**Example:** 
 ```
 luksman -u CLASSIFIED
 ```
@@ -174,7 +173,6 @@ this command prints the mount state of given encrypted volume
 
 <details><summary>click here to see an example</summary>
 
-**Example:** 
 ```
 luksman -i CLASSIFIED
 -> CLASSIFIED is mounted at /mnt/luksman/CLASSIFIED
@@ -189,7 +187,6 @@ this command prints the mountpoints of all currently mounted encrypted volumes
 
 <details><summary>click here to see an example</summary>
 
-**Example:** 
 ```
 luksman -l
 -> /mnt/luksman/CLASSIFIED
