@@ -1,7 +1,7 @@
 # luksman
 **A simple manager for LUKS encrypted volumes**\
-I made luksman because I wanted a quick and easy way to create, mount and unmount encrypted storage in my Linux workstation. These operations require several arcane commands involving losetup, cryptsetup and filesystem management commands and I was tired to have to read the corresponding man pages everytime I needed a new encrypted volume. 
-With luksman I can do everything with a single command, with some easy to remember options.
+I made luksman because I wanted a quick and easy way to create, mount and unmount encrypted storage in my Linux workstation. These operations require several arcane commands involving losetup, cryptsetup and filesystem management commands and I was tired to read the corresponding man pages everytime I needed a new encrypted volume. 
+With luksman I can do everything with a single command and some easy to remember options.
 
 Main Repository : https://github.com/rigou/luksman
 
@@ -28,7 +28,7 @@ sudo mv luksman /usr/local/sbin
 ```
 echo "alias lum='sudo /usr/local/sbin/luksman'" >>$HOME/.bashrc
 ```
-## Synopsis
+## Usage
 ```
 sudo luksman action [volume_name [options]]
 ```
@@ -43,7 +43,7 @@ sudo luksman action [volume_name [options]]
 **Options :**
 * -d path of the block device corresponding to the disk partition where the encrypted volume will be / is located
 * -f path of the folder where the file container will be / is located. An absolute path is recommended ; a relative path will be interpreted as relative to your home directory
-* -s size of the file container which will be created, in MiB (min size 20 MiB)
+* -s size of the file container which will be created, in MiB. The minimum size is 17 MiB
 * -o logname of the owner of the filesystem which will be created in the encrypted volume
 * -k path of the block device corresponding to the disk partition where the key file will be / is located
 * -K label of the filesystem where the key file will be / is located
