@@ -60,7 +60,6 @@ function create_temp_keyfile {
 function mount_key {
 	local -i retval_int=0 # 0=success, 1=error
 	if ! mountpoint -q "$KeyMountPoint" ; then
-		#echo "mounting key device $KeyDev"
 		mount "$KeyDev" "$KeyMountPoint"
 		retval_int=$?
 	fi
@@ -70,7 +69,6 @@ function mount_key {
 function unmount_key {
 	local -i retval_int=0 # 0=success, 1=error
 	if mountpoint -q "$KeyMountPoint" ; then
-		#echo "unmounting key device $KeyDev"
 		delete_all_temp_keyfiles
 		umount "$KeyMountPoint"
 		retval_int=$?
@@ -163,11 +161,10 @@ function create_luks {
 		retval_int=1 # error
 	fi
 
-	# test for existing key with same name
+	# test for existing key file with same name
 	if [ -n "$KeyDev" ] ; then
 		if mount_key ; then
 			keydev_mounted_bool=1
-			# test for existing key with same name
 			if [ -f "$KeyFile" ] ; then
 				local key_name=$KeyLabel
 				if [ -z "$key_name" ] ; then
@@ -179,6 +176,22 @@ function create_luks {
 			fi
 		else
 			retval_int=1 # error
+		fi
+	fi
+
+	# test for existing filesystem on the device
+	if [ $retval_int -eq 0 ] && [ -n "$Device" ] ; then
+		if mount -r "$Device" "$DevMountPoint" 2>/dev/null ; then
+			echo "$Device appears to contain an existing filesystem ($(findmnt -n -o FSTYPE "$DevMountPoint")) : it will be deleted"
+			umount "$DevMountPoint"
+			while : ; do
+				read -r -p "are you sure (Y/N) ? " yn
+				case $yn in
+					Y) retval_int=0 ; break ;;
+					N) retval_int=1 ; break ;;
+					*) echo "please answer Y or N" ;;
+				esac
+			done
 		fi
 	fi
 
@@ -424,7 +437,7 @@ function print_info {
 	esac
 	echo "$Name is $open_text"
 	if [ $status_int -eq  $GVS_FAILED1 ] || [ $status_int -eq  $GVS_FAILED2 ] ; then
-		echo "try \"$(basename $0) -u $Name\" to fix this error"
+		echo "try \"$(basename "$0") -u $Name\" to fix this error"
 	fi
 }
 
@@ -446,7 +459,7 @@ function exec_action {
 			create_luks
 			retval_int=$?
 		else
-			echo "$Name is in use : unmount it first with \"$(basename $0) -u $Name\""
+			echo "$Name is in use : unmount it first with \"$(basename "$0") -u $Name\""
 			retval_int=1
 		fi
 		;;
@@ -580,7 +593,8 @@ fi
 # Initializations
 declare -i Exitval=0
 if [ -n "$Name" ] ; then # the list action takes no args, hence Name is empty
-	readonly KeyMountPoint="/tmp/$APPNAME"
+	readonly DevMountPoint="/tmp/$APPNAME.dev"
+	readonly KeyMountPoint="/tmp/$APPNAME.key"
 	readonly LuksMountPoint="/mnt/$APPNAME/$Name"
 	readonly LuksMap="/dev/mapper/$Name"
 	declare BlockFile=''
@@ -592,6 +606,9 @@ if check_args ; then
 		if [ -n "$KeyDev" ] ; then 
 			KeyFile="$KeyMountPoint/$APPNAME/$Name.key"
 			mkdir -p "$KeyMountPoint"
+		fi
+		if [ -n "$Device" ] ; then 
+			mkdir -p "$DevMountPoint"
 		fi
 		if [ -n "$Folder" ] ; then
 			BlockFile="$Folder/$Name.dat"
@@ -605,6 +622,9 @@ if check_args ; then
 	
 	# final cleanup
 	if [ -n "$Name" ] ; then
+		if [ -n "$Device" ] ; then 
+			rmdir "$DevMountPoint"
+		fi
 		if [ -n "$KeyDev" ] ; then
 			rmdir "$KeyMountPoint"
 		fi
