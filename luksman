@@ -11,7 +11,7 @@
 # Run this script as root (sudo)
 
 readonly APPNAME='luksman'
-readonly VERSION='1.2.2'
+readonly VERSION='1.3.0'
 
 function get_key_device {
 	local keydev_from_label=''
@@ -96,8 +96,8 @@ function is_attached_loop_device {
 # Return values written on stdout: 			
 declare -ir GVS_CLOSED=0
 declare -ir GVS_MOUNTED=1	# encrypted filesystem mounted, ready for use
-declare -ir GVS_FAILED1=2		# blockfile attached (if any), no luks open
-declare -ir GVS_FAILED2=3		# blockfile attached (if any) and luks open but filesystem not mounted
+declare -ir GVS_FAILED1=2		# blockfile attached (if any), no LUKS open
+declare -ir GVS_FAILED2=3		# blockfile attached (if any) and LUKS open but filesystem not mounted
 function get_volume_status {
 	local -i retval_int=$GVS_CLOSED
 	local -i attached_bool=0 # 0=false, 1=true
@@ -153,8 +153,37 @@ function create_luks {
 	local -i retval_int=0 # success
 	local luks_dev=''
 	local -i attached_bool=0 # 0=false, 1=true
-	if [ -n "$BlockFile" ] ; then
-		if ! [ -f "$BlockFile" ] ; then
+	local -i luksopen_bool=0 # 0=false, 1=true
+	local -i keydev_mounted_bool=0 # 0=false, 1=true
+
+	# test for existing block file with same name
+	if [ -n "$BlockFile" ] && [ -f "$BlockFile" ] ; then
+		echo "cannot create volume $Name because file $BlockFile already exists"
+		echo "you should delete it if you want to create another volume with the same name" 
+		retval_int=1 # error
+	fi
+
+	# test for existing key with same name
+	if [ -n "$KeyDev" ] ; then
+		if mount_key ; then
+			keydev_mounted_bool=1
+			# test for existing key with same name
+			if [ -f "$KeyFile" ] ; then
+				local key_name=$KeyLabel
+				if [ -z "$key_name" ] ; then
+					key_name=$KeyDev
+				fi
+				echo "cannot create volume $Name because key file $(basename "$KeyFile") already exists"
+				echo "you should delete it from $key_name if you want to create another volume with the same name" 
+				retval_int=1 # error
+			fi
+		else
+			retval_int=1 # error
+		fi
+	fi
+
+	if [ $retval_int -eq 0 ] ; then
+		if [ -n "$BlockFile" ] ; then
 			echo "overwriting $BlockFile with $Size MiB random data"
 			if dd if=/dev/urandom of="$BlockFile" bs=1M count=$Size ; then
 				echo "assigning $BlockFile to $Owner"
@@ -169,19 +198,20 @@ function create_luks {
 				retval_int=1 # error
 			fi
 		else
-			echo "volume $Name not created because file $BlockFile already exists"
-			retval_int=1 # error
+			luks_dev=$Device
 		fi
-	else
-		luks_dev=$Device
 	fi
+
 	if [ $retval_int -eq 0 ] ; then
 		if [ -n "$KeyDev" ] ; then
-			if mount_key ; then
-				if create_temp_keyfile ; then
-					echo "formatting $Name"
-					cryptsetup luksFormat --key-file="$(get_temp_keyfile)" -q "$luks_dev"
-					retval_int=$?
+			if create_temp_keyfile ; then
+				echo "formatting $Name"
+				if cryptsetup luksFormat --key-file="$(get_temp_keyfile)" -q "$luks_dev" ; then
+					if cryptsetup open --type luks --key-file="$(get_temp_keyfile)" "$luks_dev" "$Name" ; then
+						luksopen_bool=1
+					else
+						retval_int=1 # error
+					fi
 				else
 					retval_int=1 # error
 				fi
@@ -190,35 +220,38 @@ function create_luks {
 			fi
 		else
 			echo "formatting $Name"
-			cryptsetup luksFormat -q  "$luks_dev" 
-			retval_int=$?
-		fi
-	fi
-	if [ $retval_int -eq 0 ] ; then
-		if [ -n "$KeyDev" ] ; then
-			cryptsetup open --type luks --key-file="$(get_temp_keyfile)" "$luks_dev" "$Name"
-		else
-			cryptsetup open --type luks "$luks_dev" "$Name"
-		fi
-		retval_int=$?
-		if [ $retval_int -eq 0 ] ; then
-			if mkfs -t ext4 -L "$Name" "$LuksMap" ; then
-				echo "assigning $Name to $Owner"
-				if mount "$LuksMap" "$LuksMountPoint" ; then
-					chown "$Owner": "$LuksMountPoint"
-					retval_int=$?
-					umount "$LuksMountPoint"
-					# take a short nap after umount because sometimes cryptsetup close would fail
-					# with "device-mapper: remove ioctl on PRO  failed: Device or resource busy"
-					sleep 2
+			if cryptsetup luksFormat -q  "$luks_dev" ; then
+				if cryptsetup open --type luks "$luks_dev" "$Name" ; then
+					luksopen_bool=1
 				else
 					retval_int=1 # error
 				fi
 			else
 				retval_int=1 # error
 			fi
-			cryptsetup close "$LuksMap"
 		fi
+	fi
+
+	if [ $retval_int -eq 0 ] ; then
+		if mkfs -t ext4 -L "$Name" "$LuksMap" ; then
+			echo "assigning $Name to $Owner"
+			if mount "$LuksMap" "$LuksMountPoint" ; then
+				chown "$Owner": "$LuksMountPoint"
+				retval_int=$?
+				umount "$LuksMountPoint"
+				# take a short nap after umount because sometimes cryptsetup close would fail
+				# with "device-mapper: remove ioctl on PRO  failed: Device or resource busy"
+				sleep 2
+			else
+				retval_int=1 # error
+			fi
+		else
+			retval_int=1 # error
+		fi
+	fi
+
+	if [ $luksopen_bool -eq 1 ] ; then
+		cryptsetup close "$LuksMap"
 	fi
 	if [ $attached_bool -eq 1 ] ; then
 		echo "detaching $BlockFile"
@@ -229,6 +262,8 @@ function create_luks {
 			validate_temp_keyfile
 			retval_int=$?
 		fi
+	fi
+	if [ $keydev_mounted_bool -eq 1 ] ; then
 		unmount_key
 	fi
 	if [ $retval_int -eq 0 ] ; then
@@ -384,10 +419,13 @@ function print_info {
 	case $status_int in
 	"$GVS_CLOSED") open_text="not mounted" ;;
 	"$GVS_MOUNTED") open_text="mounted at $LuksMountPoint" ;;
-	"$GVS_FAILED1") open_text="in bad open state #1 (luks open failed)" ;;
-	"$GVS_FAILED2") open_text="in bad open state #2 (filesystem mount failed)" ;;
+	"$GVS_FAILED1") open_text="in failed state : loop device attached but LUKS not open" ;;
+	"$GVS_FAILED2") open_text="in failed state : LUKS open but filesystem not mounted" ;;
 	esac
 	echo "$Name is $open_text"
+	if [ $status_int -eq  $GVS_FAILED1 ] || [ $status_int -eq  $GVS_FAILED2 ] ; then
+		echo "try \"$(basename $0) -u $Name\" to fix this error"
+	fi
 }
 
 function print_list {
@@ -408,7 +446,7 @@ function exec_action {
 			create_luks
 			retval_int=$?
 		else
-			echo "$Name is in use : unmount it before replacing it"
+			echo "$Name is in use : unmount it first with \"$(basename $0) -u $Name\""
 			retval_int=1
 		fi
 		;;
