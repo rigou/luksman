@@ -15,7 +15,7 @@ fi
 declare Name=$1
 declare Dname="D$Name"
 
-declare -i Exitval=0
+declare info Exitval=0
 
 cd /home/rigou/bin
 mkdir -p "$KeyMountPoint"
@@ -79,35 +79,35 @@ delete_keys
 print_line
 echo "VOLUME $Dname IN BLOCK DEVICE $BlockDev"
 print_line
-./luksman -c $Dname -d $BlockDev -o $User
+./luksman create $Dname -d $BlockDev -o $User
 if [ $? -ne 0 ] ; then exit_error ; fi
 print_line
 echo "TEST WITH PASSPHRASE"
 print_line
-./luksman -m $Dname -d $BlockDev 
+./luksman mount $Dname -d $BlockDev 
 if [ $? -ne 0 ] ; then exit_error ; fi
 print_line
-./luksman -u $Dname
+./luksman umount $Dname
 if [ $? -ne 0 ] ; then exit_error ; fi
 print_line
 echo "TEST WITH KEY"
 print_line
-./luksman -a $Dname -d $BlockDev -k $KeyDev
+./luksman newkey $Dname -d $BlockDev -k $KeyDev
 if [ $? -ne 0 ] ; then exit_error ; fi
 print_line
-./luksman -m $Dname -d $BlockDev -k $KeyDev
+./luksman mount $Dname -d $BlockDev -k $KeyDev
 if [ $? -ne 0 ] ; then exit_error ; fi
 print_line
-./luksman -u $Dname
+./luksman umount $Dname
 if [ $? -ne 0 ] ; then exit_error ; fi
 print_line
-./luksman -a $Dname -d $BlockDev -K $KeyLabel
+./luksman newkey $Dname -d $BlockDev -K $KeyLabel
 if [ $? -ne 0 ] ; then exit_error ; fi
 print_line
-./luksman -m $Dname -d $BlockDev -K $KeyLabel
+./luksman mount $Dname -d $BlockDev -K $KeyLabel
 if [ $? -ne 0 ] ; then exit_error ; fi
 print_line
-./luksman -u $Dname
+./luksman umount $Dname
 if [ $? -ne 0 ] ; then exit_error ; fi
 print_line
 

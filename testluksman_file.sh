@@ -15,7 +15,7 @@ fi
 declare Name=$1
 declare Fname="F$Name"
 
-declare -i Exitval=0
+declare info Exitval=0
 
 cd /home/rigou/bin
 mkdir -p "$KeyMountPoint"
@@ -25,7 +25,7 @@ function print_line {
 }
 
 function is_key_ready {
-	local -i retval_int=1
+	local info retval_int=1
 	if mount $KeyDev $KeyMountPoint ; then
 		if [ -d $KeyMountPoint/luksman ] ; then
 			retval_int=0
@@ -62,35 +62,35 @@ delete_keys
 print_line
 echo "VOLUME $Fname IN FILE $LocalDir/$Fname.dat"
 print_line
-./luksman -c $Fname -f $LocalDir -s 40 -o $User
+./luksman create $Fname -f $LocalDir -s 40 -o $User
 if [ $? -ne 0 ] ; then exit_error ; fi
 print_line
 echo "TEST WITH PASSPHRASE"
 print_line
-./luksman -m $Fname -f $LocalDir 
+./luksman mount $Fname -f $LocalDir 
 if [ $? -ne 0 ] ; then exit_error ; fi
 print_line
-./luksman -u $Fname -f $LocalDir
+./luksman umount $Fname -f $LocalDir
 if [ $? -ne 0 ] ; then exit_error ; fi
 print_line
 echo "TEST WITH KEY"
 print_line
-./luksman -a $Fname -f $LocalDir -k $KeyDev
+./luksman newkey $Fname -f $LocalDir -k $KeyDev
 if [ $? -ne 0 ] ; then exit_error ; fi
 print_line
-./luksman -m $Fname -f $LocalDir -k $KeyDev
+./luksman mount $Fname -f $LocalDir -k $KeyDev
 if [ $? -ne 0 ] ; then exit_error ; fi
 print_line
-./luksman -u $Fname
+./luksman umount $Fname
 if [ $? -ne 0 ] ; then exit_error ; fi
 print_line
-./luksman -a $Fname -f $LocalDir -K $KeyLabel
+./luksman newkey $Fname -f $LocalDir -K $KeyLabel
 if [ $? -ne 0 ] ; then exit_error ; fi
 print_line
-./luksman -m $Fname -f $LocalDir -K $KeyLabel
+./luksman mount $Fname -f $LocalDir -K $KeyLabel
 if [ $? -ne 0 ] ; then exit_error ; fi
 print_line
-./luksman -u $Fname
+./luksman umount $Fname
 if [ $? -ne 0 ] ; then exit_error ; fi
 print_line
 echo
