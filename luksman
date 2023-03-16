@@ -166,7 +166,7 @@ function create_luks {
 
 	# test for existing block file with same name
 	if [ -n "$BlockFile" ] && [ -f "$BlockFile" ] ; then
-		print_line $stderr "cannot create volume $Name because file $BlockFile already exists"
+		print_line $stderr "can not create volume $Name because file $BlockFile already exists"
 		print_line $stderr "you should delete it if you want to create another volume with the same name" 
 		retval_int=1 # error
 	fi
@@ -180,7 +180,7 @@ function create_luks {
 				if [ -z "$key_name" ] ; then
 					key_name=$KeyDev
 				fi
-				print_line $stderr "cannot create volume $Name because key file $(basename "$KeyFile") already exists"
+				print_line $stderr "can not create volume $Name because key file $(basename "$KeyFile") already exists"
 				print_line $stderr "you should delete it from $key_name if you want to create another volume with the same name" 
 				retval_int=1 # error
 			fi
@@ -195,11 +195,11 @@ function create_luks {
 			print_line $stdin "$Device appears to contain an existing filesystem ($(findmnt -n -o FSTYPE "$DevMountPoint")) : it will be deleted"
 			umount "$DevMountPoint"
 			while : ; do
-				read -r -p "are you sure (Y/N) ? " yn
+				read -r -p "are you sure (YES/no) ? " yn
 				case $yn in
-					Y) retval_int=0 ; break ;;
-					N) retval_int=1 ; break ;;
-					*) print_line $stdin "please answer Y or N" ;;
+					YES) retval_int=0 ; break ;;
+					no) retval_int=1 ; break ;;
+					*) print_line $stdin "please answer YES or no" ;;
 				esac
 			done
 		fi
