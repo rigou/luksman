@@ -34,7 +34,7 @@ sudo luksman action [volume_name [options]]
 **Actions :**
 * create : create an encrypted volume
 * mount : mount an encrypted volume
-* umount : unmount an encrypted volume
+* unmount : unmount encrypted volume(s)
 * newkey : add or replace a key file
 * info : print volume information
 * list : list mounted volumes
@@ -155,16 +155,22 @@ luksman mount CLASSIFIED -d /dev/sda3 -k /dev/sdb1
 ```
 </details>
 
-### 4. Unmount an encrypted volume
+### 4. Unmount encrypted volume(s)
 ```
-luksman umount name
+luksman unmount (name | all)
 ```
-this command applies to any encrypted volume, either located in a file container or in a disk partition
+* this command applies to any encrypted volume, either located in a file container or in a disk partition
+* use argument "all" to unmount all volumes that are currently mounted
 
-<details><summary>click here to see an example</summary>
+<details><summary>click here to see some examples</summary>
 
+**Unmount the encrypted volume named "CLASSIFIED" :**
 ```
-luksman umount CLASSIFIED
+luksman unmount CLASSIFIED
+```
+**Unmount all encrypted volumes that are currently mounted :**
+```
+luksman unmount all
 ```
 </details>
 

@@ -486,14 +486,30 @@ function exec_action {
 			retval_int=1
 		fi
 		;;
-	"$ACT_MOUNT") 	mount_luks ; retval_int=$? ;;
-	"$ACT_UMOUNT")	unmount_luks ; retval_int=$? ;;
+	"$ACT_MOUNT")
+		mount_luks
+		retval_int=$?
+		;;
+	"$ACT_UNMOUNT")	
+		if [ "$Name" = 'all' ] ; then
+			local names='' ; names=$(print_list)
+			if [ -n "$names" ] ; then
+				for name in $names ; do
+					$0 unmount "$(basename "$name")"
+				done
+			fi
+		else
+			unmount_luks
+			retval_int=$?
+		fi
+		;;
 	"$ACT_INFO")	print_info ; retval_int=0 ;;
 	"$ACT_LIST")	print_list ; retval_int=0 ;;
 	esac
 	return $retval_int
 }
 
+#$$$$$$$$ TODO: filter Name
 function usage {
 	print_line $stdin "$APPNAME v$VERSION usage"
 	local n0="    $APPNAME"
@@ -503,8 +519,8 @@ function usage {
 	print_line $stdin "$n0 $ACT_NEWKEY name (-f folder | -d device) (-k keyfile_device | -K keyfile_disk_label)"
 	print_line $stdin "mount volume"
 	print_line $stdin "$n0 $ACT_MOUNT name (-f folder | -d device) [(-k keyfile_device | -K keyfile_disk_label)]"
-	print_line $stdin "unmount volume"
-	print_line $stdin "$n0 $ACT_UMOUNT name"
+	print_line $stdin "unmount volume(s)"
+	print_line $stdin "$n0 $ACT_UNMOUNT (name | all)"
 	print_line $stdin "print volume information"
 	print_line $stdin "$n0 $ACT_INFO name"
 	print_line $stdin "list mounted volumes"
@@ -530,13 +546,13 @@ function check_args {
 		"$ACT_MOUNT") if [ -n "$Folder" ] && [ -z "$Device" ] ; then retval_int=0 ; fi
 			if [ -n "$Device" ] && [ -z "$Folder" ] ; then retval_int=0 ; fi
 			;;
-		"$ACT_UMOUNT" | "$ACT_INFO") retval_int=0 ;;
+		"$ACT_UNMOUNT" | "$ACT_INFO") retval_int=0 ;;
 		esac
 		if [ $retval_int -eq 0 ] ; then
 			# check optional arguments -k -K
 			if [ -n "$KeyDev" ] && [ -n "$KeyLabel" ] ; then retval_int=1 ; fi
 			if [ -n "$KeyDev" ] || [ -n "$KeyLabel" ] ; then
-				if [ "$Action" = "$ACT_UMOUNT" ] || [ "$Action" = "$ACT_INFO" ] ; then
+				if [ "$Action" = "$ACT_UNMOUNT" ] || [ "$Action" = "$ACT_INFO" ] ; then
 					retval_int=1
 				fi
 			fi
@@ -568,18 +584,18 @@ if [ "$(id -u)" != '0' ] ; then
 fi
 
 # Parse command line args
+readonly ACT_CREATE='create'
+readonly ACT_NEWKEY='newkey'
+readonly ACT_MOUNT='mount'
+readonly ACT_UNMOUNT='unmount'
+readonly ACT_INFO='info'
+readonly ACT_LIST='list'
 if [ $# -eq 0 ] ; then
 	usage
 	exit 1
 fi
 
 # parse positional args
-readonly ACT_CREATE='create'
-readonly ACT_NEWKEY='newkey'
-readonly ACT_MOUNT='mount'
-readonly ACT_UMOUNT='umount'
-readonly ACT_INFO='info'
-readonly ACT_LIST='list'
 declare Action=$1
 declare Name='' # empty if Action=ACT_LIST
 if [ $# -ge 2 ] ; then
