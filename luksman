@@ -13,7 +13,7 @@
 set -o nounset
 
 readonly APPNAME='luksman'
-readonly VERSION='1.4.0'
+readonly VERSION='1.4.0a'
 
 # output user-readable messages
 declare -i stdin=1
@@ -111,13 +111,27 @@ function unmount_key {
 	return $retval_int
 }
 
+# print the path of the file container of attached volume Name
+# or nothing if none (volume Name resides in a disk partition, or is not attached, or does not exist)
+function get_file_container {
+	losetup --output BACK-FILE --noheadings |grep "/$1.dat"
+}
+
+# print the loop device of attached volume Name
+# or nothing if none (volume Name resides in a disk partition, or is not attached, or does not exist)
+function get_loop_device {
+	local file_container=''
+	file_container=$(get_file_container "$1")
+	if [ -n "$file_container" ] ; then
+		losetup -j "$file_container" --output NAME --noheadings # /dev/loop0
+	fi
+}
+
 # Tell if given volume name corresponds to an attached loop device
 # Return value: 0=attached, 1=not attached or not a loop device
-function is_attached_loop_device {
-	local -i retval_int ; retval_int=$(losetup --output BACK-FILE --noheadings |grep -c "/$Name.dat")
-	if [ $retval_int -gt 0 ] ; then
-		retval_int=0
-	else
+function is_attached_file_container {
+	local -i retval_int=0
+	if [ -z "$(get_loop_device "$Name")" ] ; then
 		retval_int=1
 	fi
 	return $retval_int
@@ -126,14 +140,14 @@ function is_attached_loop_device {
 # Return values written on stdout: 			
 declare -ir GVS_CLOSED=0
 declare -ir GVS_MOUNTED=1	# encrypted filesystem mounted, ready for use
-declare -ir GVS_FAILED1=2		# blockfile attached (if any), no LUKS open
-declare -ir GVS_FAILED2=3		# blockfile attached (if any) and LUKS open but filesystem not mounted
+declare -ir GVS_FAILED1=2	# file container attached (if any), no LUKS open
+declare -ir GVS_FAILED2=3	# file container attached (if any) and LUKS open but filesystem not mounted
 function get_volume_status {
 	local -i retval_int=$GVS_CLOSED
 	local -i attached_bool=0 # 0=false, 1=true
 	local -i luksopen_bool=0
 	local -i mounted_bool=0
-	if is_attached_loop_device ; then
+	if is_attached_file_container ; then
 		attached_bool=1
 	fi
 	if [ -b "$LuksMap" ] ; then
@@ -154,15 +168,13 @@ function get_volume_status {
 	echo $retval_int
 }
 
-# to get the assigned loop device name after calling this function:
-# losetup -j /mnt/DATA/rigou/DEMO.dat --output NAME --noheadings
 # return value: writes the device name on stdout, or 'ERROR'
-function attach_blockfile {
-	if [ -f "$BlockFile" ] ; then
-		if ! is_attached_loop_device ; then
-			print_line $stderr "attaching $BlockFile"
+function attach_file_container {
+	if [ -f "$FileContainer" ] ; then
+		if ! is_attached_file_container ; then
+			print_line $stderr "attaching $FileContainer"
 			local luks_dev ; luks_dev=$(losetup -f) # /dev/loop0
-			if losetup "$luks_dev" "$BlockFile" ; then
+			if losetup "$luks_dev" "$FileContainer" ; then
 				echo "$luks_dev"
 			else
 				echo 'ERROR'
@@ -172,10 +184,29 @@ function attach_blockfile {
 			echo 'ERROR'
 		fi
 	else
-		print_line $stderr "file not found $BlockFile"
+		print_line $stderr "file not found $FileContainer"
 		echo 'ERROR'
 	fi
 	return
+}
+
+function detach_file_container {
+	retval_int=0 # success
+	if is_attached_file_container ; then
+		print_line $stdin "detaching $(get_file_container "$Name")"
+		local luks_dev=''
+		luks_dev=$(get_loop_device "$Name")
+		if [ -n "$luks_dev" ] ; then
+			if ! losetup -d "$luks_dev" ; then
+				retval_int=4 # error
+			fi
+		else
+			retval_int=3 # error
+		fi
+	else
+		retval_int=2 # error
+	fi
+	return $retval_int
 }
 
 function create_luks {
@@ -185,9 +216,9 @@ function create_luks {
 	local -i luksopen_bool=0 # 0=false, 1=true
 	local -i keydev_mounted_bool=0 # 0=false, 1=true
 
-	# test for existing block file with same name
-	if [ -n "$BlockFile" ] && [ -f "$BlockFile" ] ; then
-		print_line $stderr "can not create volume $Name because file $BlockFile already exists"
+	# test for existing file container with same name
+	if [ -n "$FileContainer" ] && [ -f "$FileContainer" ] ; then
+		print_line $stderr "can not create volume $Name because file $FileContainer already exists"
 		print_line $stderr "you should delete it if you want to create another volume with the same name" 
 		retval_int=1 # error
 	fi
@@ -227,14 +258,14 @@ function create_luks {
 	fi
 
 	if [ $retval_int -eq 0 ] ; then
-		if [ -n "$BlockFile" ] ; then
-			print_line $stdin "assigning $BlockFile to $Owner"
-			touch "$BlockFile"
-			chown "$Owner": "$BlockFile" 2>/dev/null # silently fails with Fat/exFat filesystems
-			print_line $stdin "overwriting $BlockFile with $Size MiB random data"
+		if [ -n "$FileContainer" ] ; then
+			print_line $stdin "assigning $FileContainer to $Owner"
+			touch "$FileContainer"
+			chown "$Owner": "$FileContainer" 2>/dev/null # silently fails with Fat/exFat filesystems
+			print_line $stdin "overwriting $FileContainer with $Size MiB random data"
 			# option conv=fsync used to prevent possible premature device removal
-			if dd if=/dev/urandom of="$BlockFile" bs=1M count=$Size conv=fsync status=progress ; then
-				luks_dev=$(attach_blockfile)
+			if dd if=/dev/urandom of="$FileContainer" bs=1M count=$Size conv=fsync status=progress ; then
+				luks_dev=$(attach_file_container)
 				if [ "$luks_dev" != 'ERROR'  ] ; then
 					attached_bool=1 # true
 				else
@@ -300,8 +331,7 @@ function create_luks {
 		cryptsetup close "$LuksMap"
 	fi
 	if [ $attached_bool -eq 1 ] ; then
-		print_line $stdin "detaching $BlockFile"
-		losetup -d "$luks_dev"
+		detach_file_container
 	fi
 	if [ -n "$KeyDev" ] ; then
 		if [ $retval_int -eq 0 ] ; then
@@ -323,8 +353,8 @@ function add_or_replace_key {
 	local luks_dev=''
 	local -i attached_bool=0 # 0=false, 1=true
 	if mount_key ; then
-		if [ -n "$BlockFile" ] ; then
-			luks_dev=$(attach_blockfile) # /dev/loop0
+		if [ -n "$FileContainer" ] ; then
+			luks_dev=$(attach_file_container) # /dev/loop0
 			if [ "$luks_dev" != 'ERROR'  ] ; then
 				attached_bool=1 # true
 			else
@@ -364,8 +394,7 @@ function add_or_replace_key {
 			fi
 		fi
 		if [ $attached_bool -eq 1 ] ; then
-			print_line $stdin "detaching $BlockFile"
-			losetup -d "$luks_dev"
+			detach_file_container
 		fi
 		if [ $retval_int -eq 0 ] ; then
 			validate_temp_keyfile
@@ -399,8 +428,8 @@ function mount_luks {
 		if [ "$(get_volume_status)" -eq $GVS_CLOSED ] ; then
 			local luks_dev=''
 			if  [ $retval_int -eq 0 ] ; then
-				if [ -n "$BlockFile" ] ; then
-					luks_dev=$(attach_blockfile) # /dev/loop0
+				if [ -n "$FileContainer" ] ; then
+					luks_dev=$(attach_file_container) # /dev/loop0
 					if [ "$luks_dev" = 'ERROR'  ] ; then
 						retval_int=1
 					fi
@@ -447,15 +476,81 @@ function unmount_luks {
 		fi
 		cryptsetup close "$LuksMap"
 		retval_int+=$?
-		if is_attached_loop_device ; then
-			local blockfile ; blockfile=$(losetup --output BACK-FILE --noheadings |grep "/$Name.dat")
-			print_line $stdin "detaching $blockfile"
-			local luks_dev ; luks_dev=$(losetup -j "$blockfile" --output NAME --noheadings) # /dev/loop0
-			losetup -d "$luks_dev"
+		if is_attached_file_container ; then
+			detach_file_container
 			retval_int+=$?
 		fi
 	fi
 	print_info
+	return $retval_int
+}
+
+function delete_luks {
+	local -i retval_int=0 # success
+
+	if [ "$(get_volume_status)" -eq $GVS_CLOSED ] ; then
+		# Confirm that the deletion candidate is actually a LUKS volume
+		if mount_luks ; then
+			# unmount the encrypted filesystem and close the LUKS object
+			if umount "$LuksMountPoint" ; then
+				if cryptsetup close "$LuksMap" ; then
+					# locate the LUKS storage area
+					local luks_dev=''
+					if [ -n "$FileContainer" ] ; then
+						luks_dev=$(get_loop_device "$Name")
+					else
+						luks_dev=$Device
+					fi
+					# overwrite the LUKS storage area with some random data
+					local -ri rnd_length=10 # MiB
+					print_line $stdin "overwriting $luks_dev with $rnd_length MiB random data" 
+					echo "dd if=/dev/urandom of=$luks_dev bs=1M count=$rnd_length conv=fsync"
+					# if ! dd if=/dev/urandom of="$luks_dev" bs=1M count=$rnd_length conv=fsync ; then 
+					# 	retval_int=7 # error
+					# fi
+					if is_attached_file_container ; then
+						if detach_file_container ; then 
+							# delete the file container
+							print_line $stdin "deleting $FileContainer"
+							# if ! rm "$FileContainer" ; then
+							# 	retval_int=6 # error
+							# fi
+						else
+							retval_int=5 # error
+						fi
+					fi
+				else
+					retval_int=4 # error
+				fi
+			else
+				retval_int=3 # error
+			fi
+		else
+			retval_int=2 # error
+		fi
+	else
+		retval_int=1 # error
+	fi
+
+	if  [ $retval_int -eq 0 ] ; then
+		if [ -n "$KeyDev" ] ; then
+			if mount_key ; then
+				print_line $stdin "deleting $KeyFile"
+				# if ! rm "$KeyFile" ; then
+				# 	retval_int=12
+				# fi
+				unmount_key
+			else
+				retval_int=11
+			fi
+		fi
+	fi
+	
+	if  [ $retval_int -eq 0 ] ; then
+		print_line $stdin "$Name is deleted"
+	else
+		print_line $stdin "did not delete $Name, error $retval_int"
+	fi
 	return $retval_int
 }
 
@@ -471,7 +566,7 @@ function print_info {
 	open_text="$Name is $open_text"
 	if [ $status_int -eq  $GVS_FAILED1 ] || [ $status_int -eq  $GVS_FAILED2 ] ; then
 		print_line $stderr "$open_text"
-		print_line $stderr "try \"$(basename "$0") -u $Name\" to fix this error"
+		print_line $stderr "try \"$(basename "$0") unmount $Name\" to fix this error"
 	else
 		print_line $stdin "$open_text"
 	fi
@@ -495,7 +590,7 @@ function exec_action {
 			create_luks
 			retval_int=$?
 		else
-			print_line $stderr "$Name is in use : unmount it first with \"$(basename "$0") -u $Name\""
+			print_line $stderr "$Name is in use : unmount it first with \"$(basename "$0") unmount $Name\""
 			retval_int=1
 		fi
 		;;
@@ -516,7 +611,7 @@ function exec_action {
 			local mounted_volumes='' ; mounted_volumes=$(print_list)
 			if [ -n "$mounted_volumes" ] ; then
 				while IFS= read -r mounted_volume ; do
-					$0 unmount "$(basename "$mounted_volume")"
+					"$0" unmount "$(basename "$mounted_volume")"
 					retval_int+=$?
 				done <<< "$mounted_volumes"
 			fi
@@ -524,6 +619,10 @@ function exec_action {
 			unmount_luks
 			retval_int=$?
 		fi
+		;;
+	"$ACT_DELETE")
+		delete_luks
+		retval_int=$?
 		;;
 	"$ACT_INFO") print_info ; retval_int=0 ;;
 	"$ACT_LIST") print_list ; retval_int=0 ;;
@@ -542,6 +641,8 @@ function usage {
 	print_line $stdin "$n0 $ACT_MOUNT name (-f folder | -d device) [(-k keyfile_device | -K keyfile_disk_label)]"
 	print_line $stdin "unmount volume(s)"
 	print_line $stdin "$n0 $ACT_UNMOUNT (name | all)"
+	print_line $stdin "delete volume"
+	print_line $stdin "$n0 $ACT_DELETE name (-f folder | -d device) [(-k keyfile_device | -K keyfile_disk_label)]"
 	print_line $stdin "print volume information"
 	print_line $stdin "$n0 $ACT_INFO name"
 	print_line $stdin "list mounted volumes"
@@ -567,7 +668,7 @@ function check_args {
 				if [ -n "$Device" ] && [ -z "$Folder" ] && [ -n "$KeyDev" ] &&  [ -z "$KeyLabel" ] ; then retval_int=0 ; fi
 				if [ -n "$Device" ] && [ -z "$Folder" ] && [ -z "$KeyDev" ] &&  [ -n "$KeyLabel" ] ; then retval_int=0 ; fi
 				;;
-			"$ACT_MOUNT") if [ -n "$Folder" ] && [ -z "$Device" ] ; then retval_int=0 ; fi
+			"$ACT_MOUNT" | "$ACT_DELETE") if [ -n "$Folder" ] && [ -z "$Device" ] ; then retval_int=0 ; fi
 				if [ -n "$Device" ] && [ -z "$Folder" ] ; then retval_int=0 ; fi
 				;;
 			"$ACT_UNMOUNT" | "$ACT_INFO") retval_int=0 ;;
@@ -617,6 +718,7 @@ readonly ACT_CREATE='create'
 readonly ACT_NEWKEY='newkey'
 readonly ACT_MOUNT='mount'
 readonly ACT_UNMOUNT='unmount'
+readonly ACT_DELETE='delete'
 readonly ACT_INFO='info'
 readonly ACT_LIST='list'
 if [ $# -eq 0 ] ; then
@@ -670,7 +772,7 @@ if [ -n "$Name" ] ; then # ACT_LIST takes no args, hence Name is empty
 	readonly KeyMountPoint="/tmp/$APPNAME.key"
 	readonly LuksMountPoint="/mnt/$APPNAME/$Name"
 	readonly LuksMap="/dev/mapper/$Name"
-	declare BlockFile=''
+	declare FileContainer=''
 	declare KeyFile=''
 fi
 if check_args ; then
@@ -684,7 +786,7 @@ if check_args ; then
 			mkdir -p "$DevMountPoint"
 		fi
 		if [ -n "$Folder" ] ; then
-			BlockFile="$Folder/$Name.dat"
+			FileContainer="$Folder/$Name.dat"
 		fi
 		if ! [ -d "$LuksMountPoint" ] ; then
 			mkdir -p "$LuksMountPoint"
