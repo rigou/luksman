@@ -13,7 +13,7 @@
 set -o nounset
 
 readonly APPNAME='luksman'
-readonly VERSION='1.3.0'
+readonly VERSION='1.4.0'
 
 # output user-readable messages
 declare -i stdin=1
@@ -24,6 +24,25 @@ function print_line {
 	else
 		echo "$2" 1>&2
 	fi
+}
+
+# sanitize given name for fat32 compatibility
+function sanitize_name {
+    if [ -n "$1" ] ; then
+	    local text=$1
+		text="${text//$'\n'/}"
+		text="${text//$'\r'/}"
+		text="${text//\//}"
+		text="${text//</}"
+		text="${text//>/}"
+		text="${text//:/}"
+		text="${text//\"/}"
+		text="${text//\\/}"
+		text="${text//|/}"
+		text="${text//\?/}"
+		text="${text//\*/}"
+		echo -n "$text"
+    fi
 }
 
 function get_key_device {
@@ -209,11 +228,13 @@ function create_luks {
 
 	if [ $retval_int -eq 0 ] ; then
 		if [ -n "$BlockFile" ] ; then
+			print_line $stdin "assigning $BlockFile to $Owner"
+			touch "$BlockFile"
+			chown "$Owner": "$BlockFile" 2>/dev/null # silently fails with Fat/exFat filesystems
 			print_line $stdin "overwriting $BlockFile with $Size MiB random data"
-			if dd if=/dev/urandom of="$BlockFile" bs=1M count=$Size ; then
-				print_line $stdin "assigning $BlockFile to $Owner"
-				chown "$Owner": "$BlockFile"
-				luks_dev=$(attach_blockfile) # /dev/loop0
+			# option conv=fsync used to prevent possible premature device removal
+			if dd if=/dev/urandom of="$BlockFile" bs=1M count=$Size conv=fsync status=progress ; then
+				luks_dev=$(attach_blockfile)
 				if [ "$luks_dev" != 'ERROR'  ] ; then
 					attached_bool=1 # true
 				else
@@ -470,7 +491,7 @@ function print_list {
 function exec_action {
 	local -i retval_int=0 # success
 	case "$Action" in
-	"$ACT_CREATE") 	if [ "$(get_volume_status)" -eq $GVS_CLOSED ] ; then
+	"$ACT_CREATE") if [ "$(get_volume_status)" -eq $GVS_CLOSED ] ; then
 			create_luks
 			retval_int=$?
 		else
@@ -478,7 +499,7 @@ function exec_action {
 			retval_int=1
 		fi
 		;;
-	"$ACT_NEWKEY")	if [ "$(get_volume_status)" -eq $GVS_CLOSED ] ; then
+	"$ACT_NEWKEY") if [ "$(get_volume_status)" -eq $GVS_CLOSED ] ; then
 			add_or_replace_key
 			retval_int=$?
 		else
@@ -490,26 +511,26 @@ function exec_action {
 		mount_luks
 		retval_int=$?
 		;;
-	"$ACT_UNMOUNT")	
+	"$ACT_UNMOUNT")
 		if [ "$Name" = 'all' ] ; then
-			local names='' ; names=$(print_list)
-			if [ -n "$names" ] ; then
-				for name in $names ; do
-					$0 unmount "$(basename "$name")"
-				done
+			local mounted_volumes='' ; mounted_volumes=$(print_list)
+			if [ -n "$mounted_volumes" ] ; then
+				while IFS= read -r mounted_volume ; do
+					$0 unmount "$(basename "$mounted_volume")"
+					retval_int+=$?
+				done <<< "$mounted_volumes"
 			fi
 		else
 			unmount_luks
 			retval_int=$?
 		fi
 		;;
-	"$ACT_INFO")	print_info ; retval_int=0 ;;
-	"$ACT_LIST")	print_list ; retval_int=0 ;;
+	"$ACT_INFO") print_info ; retval_int=0 ;;
+	"$ACT_LIST") print_list ; retval_int=0 ;;
 	esac
 	return $retval_int
 }
 
-#$$$$$$$$ TODO: filter Name
 function usage {
 	print_line $stdin "$APPNAME v$VERSION usage"
 	local n0="    $APPNAME"
@@ -533,38 +554,46 @@ function check_args {
 	if [ "$Action" = $ACT_LIST ] ; then
 		retval_int=0 # list takes no args
 	elif [ -n "$Name" ] ; then
-		# check required arguments
-		case "$Action" in
-		"$ACT_CREATE") if [ -n "$Folder" ] && [ -z "$Device" ] && [ $Size -ge $VOLUME_MIN_SIZE ] && [ -n "$Owner" ] ; then retval_int=0 ; fi
-			if [ -n "$Device" ] && [ -z "$Folder" ] && [ -n "$Owner" ] ; then retval_int=0 ; fi
-			;;
-		"$ACT_NEWKEY") if [ -n "$Folder" ] && [ -z "$Device" ] && [ -n "$KeyDev" ] &&  [ -z "$KeyLabel" ] ; then retval_int=0 ; fi
-			if [ -n "$Folder" ] && [ -z "$Device" ] && [ -z "$KeyDev" ] &&  [ -n "$KeyLabel" ] ; then retval_int=0 ; fi
-			if [ -n "$Device" ] && [ -z "$Folder" ] && [ -n "$KeyDev" ] &&  [ -z "$KeyLabel" ] ; then retval_int=0 ; fi
-			if [ -n "$Device" ] && [ -z "$Folder" ] && [ -z "$KeyDev" ] &&  [ -n "$KeyLabel" ] ; then retval_int=0 ; fi
-			;;
-		"$ACT_MOUNT") if [ -n "$Folder" ] && [ -z "$Device" ] ; then retval_int=0 ; fi
-			if [ -n "$Device" ] && [ -z "$Folder" ] ; then retval_int=0 ; fi
-			;;
-		"$ACT_UNMOUNT" | "$ACT_INFO") retval_int=0 ;;
-		esac
-		if [ $retval_int -eq 0 ] ; then
-			# check optional arguments -k -K
-			if [ -n "$KeyDev" ] && [ -n "$KeyLabel" ] ; then retval_int=1 ; fi
-			if [ -n "$KeyDev" ] || [ -n "$KeyLabel" ] ; then
-				if [ "$Action" = "$ACT_UNMOUNT" ] || [ "$Action" = "$ACT_INFO" ] ; then
-					retval_int=1
+		# check Name
+		local filtered_name='' ; filtered_name=$(sanitize_name "$Name")
+		if [ "$filtered_name" = "$Name" ] ; then
+			# check required arguments
+			case "$Action" in
+			"$ACT_CREATE") if [ -n "$Folder" ] && [ -z "$Device" ] && [ $Size -ge $VOLUME_MIN_SIZE ] && [ -n "$Owner" ] ; then retval_int=0 ; fi
+				if [ -n "$Device" ] && [ -z "$Folder" ] && [ -n "$Owner" ] ; then retval_int=0 ; fi
+				;;
+			"$ACT_NEWKEY") if [ -n "$Folder" ] && [ -z "$Device" ] && [ -n "$KeyDev" ] &&  [ -z "$KeyLabel" ] ; then retval_int=0 ; fi
+				if [ -n "$Folder" ] && [ -z "$Device" ] && [ -z "$KeyDev" ] &&  [ -n "$KeyLabel" ] ; then retval_int=0 ; fi
+				if [ -n "$Device" ] && [ -z "$Folder" ] && [ -n "$KeyDev" ] &&  [ -z "$KeyLabel" ] ; then retval_int=0 ; fi
+				if [ -n "$Device" ] && [ -z "$Folder" ] && [ -z "$KeyDev" ] &&  [ -n "$KeyLabel" ] ; then retval_int=0 ; fi
+				;;
+			"$ACT_MOUNT") if [ -n "$Folder" ] && [ -z "$Device" ] ; then retval_int=0 ; fi
+				if [ -n "$Device" ] && [ -z "$Folder" ] ; then retval_int=0 ; fi
+				;;
+			"$ACT_UNMOUNT" | "$ACT_INFO") retval_int=0 ;;
+			esac
+			if [ $retval_int -eq 0 ] ; then
+				# check optional arguments -k -K
+				if [ -n "$KeyDev" ] && [ -n "$KeyLabel" ] ; then retval_int=1 ; fi
+				if [ -n "$KeyDev" ] || [ -n "$KeyLabel" ] ; then
+					if [ "$Action" = "$ACT_UNMOUNT" ] || [ "$Action" = "$ACT_INFO" ] ; then
+						retval_int=1
+					fi
 				fi
 			fi
+			if [ $retval_int -ne 0 ] ; then 
+				print_line $stderr "missing/extra/invalid arg"
+			fi
+		else
+			print_line $stderr "$Name contains illegal character(s)"
+			retval_int=1
 		fi
 	fi
-	if [ $retval_int -ne 0 ] ; then 
-		print_line $stderr "missing/extra/invalid arg"
-	else
+	if [ $retval_int -eq 0 ] ; then 
 		if [ -n "$Folder" ] && ! [ -d "$Folder" ] ; then print_line $stderr "folder $Folder not found" ; retval_int=2 ; fi
 		if [ -n "$Device" ] && ! [ -b "$Device" ] ; then print_line $stderr "device $Device not found" ; retval_int=2 ; fi
 		if [ -n "$KeyDev" ] && ! [ -b "$KeyDev" ] ; then print_line $stderr "device $KeyDev not found" ; retval_int=2 ; fi
-		if [ -n "$Owner" ] && ! id "$Owner" &>/dev/null ; then print_line $stderr "user $Owner not found" ; retval_int=2 ; fi
+		if [ -n "$Owner" ] && ! id "$Owner" 1>/dev/null 2>&1 ; then print_line $stderr "user $Owner not found" ; retval_int=2 ; fi
 		if [ -n "$KeyLabel" ] ; then
 			# get_key_device() returns empty string if label not found
 			if [ -z "$(get_key_device)" ] ; then
