@@ -19,7 +19,7 @@ Install the required package ``cryptsetup-bin``
 sudo apt update
 sudo apt install cryptsetup-bin
 ```
-Download source code of latest release at https://github.com/rigou/luksman/releases
+Download the latest release of luksman at https://github.com/rigou/luksman/releases
 ```
 tar xzf luksman_vx.y.z.tar.gz
 sudo chown root: luksman
