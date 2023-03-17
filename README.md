@@ -43,8 +43,8 @@ sudo luksman action [volume_name [options]]
 * list : list mounted volumes
 
 **Volume name :**
-* this character string uniquely identifies an encrypted volume. The key file (if any) and the file container (if any) are named after it. 
-* for ease of use do not put spaces in this name and avoid common illegal characters or symbols for file names : / (forward slash), < (less than), > (greater than), : (colon), " (double quote), \ (backslash), | (vertical bar or pipe), ? (question mark), * (asterisk).
+* this name uniquely identifies an encrypted volume. The key file (if any) and the file container (if any) are named after it. 
+* for ease of use avoid spaces in this name and do not use common illegal characters or symbols for file names : / (forward slash), < (less than), > (greater than), : (colon), " (double quote), \ (backslash), | (vertical bar or pipe), ? (question mark), * (asterisk).
 
 **Options :**
 * -d path of the disk partition where the encrypted volume is (or will be) located
