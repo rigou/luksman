@@ -13,7 +13,7 @@
 set -o nounset
 
 readonly APPNAME='luksman'
-readonly VERSION='1.4.0a'
+readonly VERSION='1.4.0'
 
 # output user-readable messages
 declare -i stdin=1
