@@ -15,12 +15,15 @@ These features cover 99% of the author's needs. If your requirements are more co
 
 ## Installation
 Install the required package ``cryptsetup-bin``
-
+```
+sudo apt update
+sudo apt install cryptsetup-bin
+```
 Download source code of latest release at https://github.com/rigou/luksman/releases
 ```
 tar xzf luksman_vx.y.z.tar.gz
 sudo chown root: luksman
-sudo chmod 740 luksman
+sudo chmod 770 luksman
 sudo mv luksman /usr/local/sbin
 ```
 *optionally, add this convenient alias :*
