@@ -1,0 +1,96 @@
+Device vs File container comparison
+2023-03-17
+
+$ time lum create TEST01 -d /dev/sdc1 -K LUKSMANKEY -o rigou 
+generating new key file
+formatting TEST01
+mke2fs 1.46.2 (28-Feb-2021)
+Creating filesystem with 3835648 4k blocks and 959104 inodes
+assigning TEST01 to rigou
+validating new key file
+volume TEST01 is created
+real	0m54.450s
+user	0m22.156s
+sys	0m2.471s
+
+$ lum mount TEST01 -d /dev/sdc1 -K LUKSMANKEY
+opening TEST01
+mounting TEST01
+TEST01 is mounted at /mnt/luksman/TEST01
+
+$ time dd if=/dev/urandom of=/mnt/luksman/TEST01/10G.dat bs=1M count=10000 conv=fsync status=progress
+10000+0 records in
+10000+0 records out
+10485760000 bytes (10 GB, 9.8 GiB) copied, 1235.88 s, 8.5 MB/s
+real	20m36.297s
+user	0m0.132s
+sys	1m37.003s
+
+$ lum unmount TEST01
+unmounting TEST01
+TEST01 is not mounted
+
+=======================================================================
+
+$ sudo mkfs.exfat -n UMOX16G /dev/sdc1
+exfatprogs version : 1.1.0
+Creating exFAT filesystem(/dev/sdc1, cluster size=32768)
+exFAT format complete!
+
+$ sudo mount /dev/sdc1 /media/usb
+
+$ time lum create TEST01 -f /media/usb -s 12000 -K LUKSMANKEY -o rigou 
+overwriting /media/usb/TEST01.dat with 12000 MiB random data
+12000+0 records in
+12000+0 records out
+12582912000 bytes (13 GB, 12 GiB) copied, 1182.09 s, 10.6 MB/s
+assigning /media/usb/TEST01.dat to rigou
+attaching /media/usb/TEST01.dat
+generating new key file
+formatting TEST01
+mke2fs 1.46.2 (28-Feb-2021)
+Creating filesystem with 3067904 4k blocks and 767040 inodes
+assigning TEST01 to rigou
+detaching /media/usb/TEST01.dat
+validating new key file
+volume TEST01 is created
+real	24m42.928s
+user	0m24.280s
+sys	3m40.840s
+
+$ lum mount TEST01 -f /media/usb/ -K LUKSMANKEY
+attaching /media/usb//TEST01.dat
+opening TEST01
+mounting TEST01
+TEST01 is mounted at /mnt/luksman/TEST01
+
+$ df
+Filesystem         1K-blocks     Used Available Use% Mounted on
+/dev/sdc1           15355904 12288128   3067776  81% /media/usb
+/dev/mapper/TEST01  11972488       24  11342500   1% /mnt/luksman/TEST01
+
+$ time dd if=/dev/urandom of=/mnt/luksman/TEST01/10G.dat bs=1M count=10000 conv=fsync status=progress
+10000+0 records in
+10000+0 records out
+10485760000 bytes (10 GB, 9.8 GiB) copied, 3783.18 s, 2.8 MB/s
+real	63m3.191s
+user	0m0.285s
+sys	2m34.960s
+
+$ df
+Filesystem         1K-blocks     Used Available Use% Mounted on
+/dev/sdc1           15355904 12288128   3067776  81% /media/usb
+/dev/mapper/TEST01  11972488 10240028   1102496  91% /mnt/luksman/TEST01
+
+$ ll /mnt/luksman/TEST01
+total 10240020
+-rw-r--r-- 1 rigou rigou 10485760000 Mar 17 10:11 10G.dat
+
+$ ll /media/usb
+-rwxr-xr-x 1 rigou rigou 12582912000 Mar 17 10:21 TEST01.dat
+
+$ lum unmount TEST01
+unmounting TEST01
+detaching /media/usb/TEST01.dat
+TEST01 is not mounted
+

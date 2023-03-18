@@ -67,10 +67,6 @@ function validate_temp_keyfile {
 	return $?
 }
 
-function delete_all_temp_keyfiles {
-	find "$(dirname "$KeyFile")"  -name '*\.tmp' -exec rm "{}" \;
-}
-
 # Store a randomly generated 33 char key in a file
 # we create the key using a 90 ascii printable char set
 # a 33 char key lengths gives 3 x 10^64 distinct keys
@@ -101,7 +97,7 @@ function mount_key {
 function unmount_key {
 	local -i retval_int=0 # 0=success, 1=error
 	if mountpoint -q "$KeyMountPoint" ; then
-		delete_all_temp_keyfiles
+		rm -f "$(get_temp_keyfile)" # just in case
 		umount "$KeyMountPoint"
 		retval_int=$?
 	else
@@ -112,13 +108,13 @@ function unmount_key {
 }
 
 # print the path of the file container of attached volume Name
-# or nothing if none (volume Name resides in a disk partition, or is not attached, or does not exist)
+# or nothing if none (volume resides in a disk partition, or is not attached, or does not exist)
 function get_file_container {
 	losetup --output BACK-FILE --noheadings |grep "/$1.dat"
 }
 
 # print the loop device of attached volume Name
-# or nothing if none (volume Name resides in a disk partition, or is not attached, or does not exist)
+# or nothing if none (volume resides in a disk partition, or is not attached, or does not exist)
 function get_loop_device {
 	local file_container=''
 	file_container=$(get_file_container "$1")
@@ -131,7 +127,7 @@ function get_loop_device {
 # Return value: 0=attached, 1=not attached or not a loop device
 function is_attached_file_container {
 	local -i retval_int=0
-	if [ -z "$(get_loop_device "$Name")" ] ; then
+	if [ -z "$(get_loop_device "$1")" ] ; then
 		retval_int=1
 	fi
 	return $retval_int
@@ -147,7 +143,7 @@ function get_volume_status {
 	local -i attached_bool=0 # 0=false, 1=true
 	local -i luksopen_bool=0
 	local -i mounted_bool=0
-	if is_attached_file_container ; then
+	if is_attached_file_container "$Name" ; then
 		attached_bool=1
 	fi
 	if [ -b "$LuksMap" ] ; then
@@ -171,7 +167,7 @@ function get_volume_status {
 # return value: writes the device name on stdout, or 'ERROR'
 function attach_file_container {
 	if [ -f "$FileContainer" ] ; then
-		if ! is_attached_file_container ; then
+		if ! is_attached_file_container "$Name" ; then
 			print_line $stderr "attaching $FileContainer"
 			local luks_dev ; luks_dev=$(losetup -f) # /dev/loop0
 			if losetup "$luks_dev" "$FileContainer" ; then
@@ -192,7 +188,7 @@ function attach_file_container {
 
 function detach_file_container {
 	retval_int=0 # success
-	if is_attached_file_container ; then
+	if is_attached_file_container "$Name" ; then
 		print_line $stdin "detaching $(get_file_container "$Name")"
 		local luks_dev=''
 		luks_dev=$(get_loop_device "$Name")
@@ -476,7 +472,7 @@ function unmount_luks {
 		fi
 		cryptsetup close "$LuksMap"
 		retval_int+=$?
-		if is_attached_file_container ; then
+		if is_attached_file_container "$Name" ; then
 			detach_file_container
 			retval_int+=$?
 		fi
@@ -502,19 +498,17 @@ function delete_luks {
 						luks_dev=$Device
 					fi
 					# overwrite the LUKS storage area with some random data
-					local -ri rnd_length=10 # MiB
+					local -ri rnd_length=20 # MiB
 					print_line $stdin "overwriting $luks_dev with $rnd_length MiB random data" 
-					echo "dd if=/dev/urandom of=$luks_dev bs=1M count=$rnd_length conv=fsync"
-					# if ! dd if=/dev/urandom of="$luks_dev" bs=1M count=$rnd_length conv=fsync ; then 
-					# 	retval_int=7 # error
-					# fi
-					if is_attached_file_container ; then
+					if ! dd if=/dev/urandom of="$luks_dev" bs=1M count=$rnd_length conv=fsync ; then 
+						retval_int=7 # error
+					fi
+					if is_attached_file_container "$Name" ; then
 						if detach_file_container ; then 
-							# delete the file container
 							print_line $stdin "deleting $FileContainer"
-							# if ! rm "$FileContainer" ; then
-							# 	retval_int=6 # error
-							# fi
+							if ! rm "$FileContainer" ; then
+								retval_int=6 # error
+							fi
 						else
 							retval_int=5 # error
 						fi
@@ -535,10 +529,10 @@ function delete_luks {
 	if  [ $retval_int -eq 0 ] ; then
 		if [ -n "$KeyDev" ] ; then
 			if mount_key ; then
-				print_line $stdin "deleting $KeyFile"
-				# if ! rm "$KeyFile" ; then
-				# 	retval_int=12
-				# fi
+				print_line $stdin "deleting $(basename "$KeyFile")"
+				if ! rm "$KeyFile" ; then
+					retval_int=12
+				fi
 				unmount_key
 			else
 				retval_int=11
@@ -549,6 +543,7 @@ function delete_luks {
 	if  [ $retval_int -eq 0 ] ; then
 		print_line $stdin "$Name is deleted"
 	else
+		print_info
 		print_line $stdin "did not delete $Name, error $retval_int"
 	fi
 	return $retval_int
@@ -768,8 +763,8 @@ if ! cd "/home/${SUDO_USER:-$USER}" ; then
 fi
 
 if [ -n "$Name" ] ; then # ACT_LIST takes no args, hence Name is empty
-	readonly DevMountPoint="/tmp/$APPNAME.dev"
-	readonly KeyMountPoint="/tmp/$APPNAME.key"
+	readonly DevMountPoint="/tmp/$APPNAME-$$.dev"
+	readonly KeyMountPoint="/tmp/$APPNAME-$$.key"
 	readonly LuksMountPoint="/mnt/$APPNAME/$Name"
 	readonly LuksMap="/dev/mapper/$Name"
 	declare FileContainer=''
