@@ -3,7 +3,7 @@
 readonly User='rigou'
 
 if [ $# -ne 5 ] ; then
-	echo "usage: $(basename "$0") volume_name vol_option(-d -f) vol_path key_option(-k -K) key_path"
+	echo "usage: $(basename "$0") volume_name vol_option(-d -f) vol_path key_option(-k -l) key_path"
 	exit 1
 fi
 
@@ -23,7 +23,7 @@ function exit_error {
 declare Name=$1
 declare Vol_option=$2 # (-d -f)
 declare Vol_path=$3
-declare Key_option=$4 # (-k -K)
+declare Key_option=$4 # (-k -l)
 declare Key_path=$5
 
 print_line

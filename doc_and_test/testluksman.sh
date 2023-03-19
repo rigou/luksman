@@ -24,13 +24,13 @@ cd "/home/${SUDO_USER:-$USER}/bin" || exit_error
 if ! ./testluksman_param.sh "TEST01-$$" -f "$LocalDir" -k "$KeyDev" ; then
     exit_error
 fi
-if ! ./testluksman_param.sh "TEST02-$$" -f "$LocalDir" -K "$KeyLabel" ; then
+if ! ./testluksman_param.sh "TEST02-$$" -f "$LocalDir" -l "$KeyLabel" ; then
     exit_error
 fi
 if ! ./testluksman_param.sh "TEST03-$$" -d "$BlockDev" -k "$KeyDev" ; then
     exit_error
 fi
-if ! ./testluksman_param.sh "TEST04-$$" -d "$BlockDev" -K "$KeyLabel" ; then
+if ! ./testluksman_param.sh "TEST04-$$" -d "$BlockDev" -l "$KeyLabel" ; then
     exit_error
 fi
 echo "$(date '+%Y%m%dT%H%M') $(basename "$0" '.sh') (pid=$$) SUCCESS"

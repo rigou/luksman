@@ -1,9 +1,11 @@
 #!/bin/bash
+# to exit the loop cleanly : touch $HOME/test/STOP
 
-readonly LocalDir='/home/rigou/test'
 readonly BlockDev='/dev/sdc1'
 readonly KeyDev='/dev/sdb1'
 readonly KeyLabel='LUKSMANKEY'
+readonly HOMEDIR="/home/${SUDO_USER:-$USER}"
+readonly LocalDir="$HOMEDIR/test"
 
 function exit_error {
 	echo "$(date '+%Y%m%dT%H%M') $(basename "$0" '.sh') (pid=$$) FAILED"
@@ -19,11 +21,13 @@ if [ "$(id -u)" != '0' ] ; then
 fi
 
 echo "$(date '+%Y%m%dT%H%M') $(basename "$0" '.sh') (pid=$$) BEGIN"
-cd "/home/${SUDO_USER:-$USER}/bin" || exit_error
+cd "$HOMEDIR/bin" || exit_error
 
-while : ; do
-    if ! ./testluksman_param.sh "TEST02-$$" -f "$LocalDir" -K "$KeyLabel" ; then
+while ! [ -f "$LocalDir/STOP" ] ; do
+    if ! ./testluksman_param.sh "TEST02-$$" -f "$LocalDir" -l "$KeyLabel" ; then
         exit_error
     fi
     sleep $((RANDOM % 10 + 1))
 done
+
+echo "$(date '+%Y%m%dT%H%M') $(basename "$0" '.sh') (pid=$$) END"
