@@ -16,14 +16,18 @@ readonly APPNAME='luksman'
 readonly VERSION='1.4.0'
 
 # output user-readable messages
+declare -i DEBUG_ENABLED=1 # 1=enabled, 0=disabled
 declare -i stdin=1
 declare -i stderr=2
+declare -i stdebug=3
 function print_line {
-	if [ "$1" -eq $stdin ] ; then
-		echo "$2"
-	else
-		echo "$2" 1>&2
-	fi
+	case $1 in
+		"$stdin") echo "$2" ;;
+
+		"$stderr") echo "$2" 1>&2 ;;
+
+		"$stdebug") if [ $DEBUG_ENABLED -eq 1 ] ; then echo "DEBUG $2" 1>&2 ; fi ;;
+	esac
 }
 
 # sanitize given name for fat32 compatibility
@@ -46,6 +50,7 @@ function sanitize_name {
 }
 
 function get_key_device {
+	print_line $stdebug "get_key_device()"
 	local keydev_from_label=''
 	if [ -n "$KeyLabel" ] ; then
 		keydev_from_label=$(readlink -fe "/dev/disk/by-label/$KeyLabel")
@@ -74,6 +79,7 @@ function validate_temp_keyfile {
 # Lucks will use our key to unlock the master-key of the encrypted device
 # (passphrases can be up to 512 characters and keyfiles up to 8192 KiB)
 function create_temp_keyfile {
+	print_line $stdebug "create_temp_keyfile()"
 	local -i retval_int=0 # success
 	local temp_keyfile ; temp_keyfile=$(get_temp_keyfile)
 	print_line $stdin "generating new key file"
@@ -86,6 +92,7 @@ function create_temp_keyfile {
 }
 
 function mount_key {
+	print_line $stdebug "mount_key()"
 	local -i retval_int=0 # 0=success, 1=error
 	if ! mountpoint -q "$KeyMountPoint" ; then
 		mount "$KeyDev" "$KeyMountPoint"
@@ -95,6 +102,7 @@ function mount_key {
 }
 
 function unmount_key {
+	print_line $stdebug "unmount_key()"
 	local -i retval_int=0 # 0=success, 1=error
 	if mountpoint -q "$KeyMountPoint" ; then
 		rm -f "$(get_temp_keyfile)" # just in case
@@ -110,12 +118,14 @@ function unmount_key {
 # print the path of the file container of attached volume Name
 # or nothing if none (volume resides in a disk partition, or is not attached, or does not exist)
 function get_file_container {
+	print_line $stdebug "get_file_container()"
 	losetup --output BACK-FILE --noheadings |grep "/$1.dat"
 }
 
 # print the loop device of attached volume Name
 # or nothing if none (volume resides in a disk partition, or is not attached, or does not exist)
 function get_loop_device {
+	print_line $stdebug "get_loop_device()"
 	local file_container=''
 	file_container=$(get_file_container "$1")
 	if [ -n "$file_container" ] ; then
@@ -126,6 +136,7 @@ function get_loop_device {
 # Tell if given volume name corresponds to an attached loop device
 # Return value: 0=attached, 1=not attached or not a loop device
 function is_attached_file_container {
+	print_line $stdebug "is_attached_file_container()"
 	local -i retval_int=0
 	if [ -z "$(get_loop_device "$1")" ] ; then
 		retval_int=1
@@ -139,6 +150,7 @@ declare -ir GVS_MOUNTED=1	# encrypted filesystem mounted, ready for use
 declare -ir GVS_FAILED1=2	# file container attached (if any), no LUKS open
 declare -ir GVS_FAILED2=3	# file container attached (if any) and LUKS open but filesystem not mounted
 function get_volume_status {
+	print_line $stdebug "get_volume_status()"
 	local -i retval_int=$GVS_CLOSED
 	local -i attached_bool=0 # 0=false, 1=true
 	local -i luksopen_bool=0
@@ -166,15 +178,31 @@ function get_volume_status {
 
 # return value: writes the device name on stdout, or 'ERROR'
 function attach_file_container {
+	print_line $stdebug "attach_file_container()"
 	if [ -f "$FileContainer" ] ; then
 		if ! is_attached_file_container "$Name" ; then
 			print_line $stderr "attaching $FileContainer"
-			local luks_dev ; luks_dev=$(losetup -f) # /dev/loop0
-			if losetup "$luks_dev" "$FileContainer" ; then
-				echo "$luks_dev"
+			# The loop device setup is not an atomic operation when used with --find, 
+			# and losetup does not protect this operation by any lock.
+			# It is recommended to use flock(1) to avoid a collision in heavily parallel use cases
+			# with error like "losetup: failed to set up loop device: Device or resource busy"
+			local luks_dev=''
+			exec 4<>"/var/lock/$APPNAME-losetup.lock" # open this file with descriptor 4
+			# allow for a 10 seconds timeout to get a lock on this file
+			if flock --wait 10 4 ; then
+				# got lock
+				if luks_dev=$(losetup --find --nooverlap) ; then # something like /dev/loop0
+					if ! losetup "$luks_dev" "$FileContainer" ; then
+						luks_dev='ERROR'
+					fi
+				else
+					luks_dev='ERROR'
+				fi
 			else
-				echo 'ERROR'
+				luks_dev='ERROR' # failed to obtain lock
 			fi
+			exec 4>&- # close the file to unlock it
+			echo "$luks_dev"
 		else
 			print_line $stderr "$Name is already attached"
 			echo 'ERROR'
@@ -187,6 +215,7 @@ function attach_file_container {
 }
 
 function detach_file_container {
+	print_line $stdebug "detach_file_container()"
 	retval_int=0 # success
 	if is_attached_file_container "$Name" ; then
 		print_line $stdin "detaching $(get_file_container "$Name")"
@@ -206,6 +235,7 @@ function detach_file_container {
 }
 
 function create_luks {
+	print_line $stdebug "create_luks()"
 	local -i retval_int=0 # success
 	local luks_dev=''
 	local -i attached_bool=0 # 0=false, 1=true
@@ -312,7 +342,7 @@ function create_luks {
 				chown "$Owner": "$LuksMountPoint"
 				retval_int=$?
 				umount "$LuksMountPoint"
-				# take a short nap after umount because sometimes cryptsetup close would fail
+				# take a short nap after umount because sometimes (under high system load) cryptsetup close would fail
 				# with "device-mapper: remove ioctl on PRO  failed: Device or resource busy"
 				sleep 2
 			else
@@ -345,6 +375,7 @@ function create_luks {
 }
 
 function add_or_replace_key {
+	print_line $stdebug "add_or_replace_key()"
 	local -i retval_int=0 # success
 	local luks_dev=''
 	local -i attached_bool=0 # 0=false, 1=true
@@ -407,6 +438,7 @@ function add_or_replace_key {
 }
 
 function mount_luks {
+	print_line $stdebug "mount_luks()"
 	local -i retval_int=0 # success
 	local -i key_mounted_bool=0 # 0=false 1=true
 	if [ -n "$KeyDev" ] ; then
@@ -457,36 +489,70 @@ function mount_luks {
 	return $retval_int
 }
 
+# unmounting an encrypted volume is a 3 steps process
 function unmount_luks {
+	print_line $stdebug "unmount_luks()"
 	local -i retval_int=0 # success
-	if [ "$(get_volume_status)" -ne $GVS_CLOSED ] ; then
+	local -i status_int=0; status_int=$(get_volume_status)
+
+	case $status_int in
+
+	"$GVS_MOUNTED") # unmount step 1 : encrypted filesystem mounted
 		print_line $stdin "unmounting $Name"
 		if umount "$LuksMountPoint" ; then
 			# take a short nap after umount because sometimes cryptsetup close would fail
 			# with "device-mapper: remove ioctl on PRO  failed: Device or resource busy"
 			sleep 2
+			unmount_luks # recursive call to case GVS_FAILED2
+			retval_int=$?
 		else
 			# list open files, if any
-			lsof +d "$LuksMountPoint" 2>/dev/nullretval_int=1
-			retval_int=1
+			lsof +d "$LuksMountPoint" 2>/dev/null ; retval_int=1
+			retval_int=1 # error
+			print_line $stdebug "unmount_luks() failed, error $retval_int"
 		fi
-		cryptsetup close "$LuksMap"
-		retval_int+=$?
-		if is_attached_file_container "$Name" ; then
-			detach_file_container
-			retval_int+=$?
+		print_info
+		;;
+
+	"$GVS_FAILED2") # unmount step 2 : file container attached (if any) and LUKS open but filesystem not mounted
+		print_line $stdin "closing $LuksMap"
+		if cryptsetup close "$LuksMap" ; then
+			unmount_luks # recursive call to case GVS_FAILED1
+			retval_int=$?
+		else
+			retval_int=2 # error
+			print_line $stdebug "unmount_luks() failed, error $retval_int"
 		fi
-	fi
-	print_info
+		;;
+
+	"$GVS_FAILED1") # unmount step 3 : file container attached, no LUKS open
+		print_line $stdin "detaching $LuksMap"
+		if detach_file_container ; then
+			retval_int=0
+		else
+			retval_int=3 # error
+			print_line $stdebug "unmount_luks() failed, error $retval_int"
+		fi
+		;;
+
+	"$GVS_CLOSED") # encrypted filesystem unmounted
+		retval_int=0
+		;;
+	esac
+
 	return $retval_int
 }
 
 function delete_luks {
+	print_line $stdebug "delete_luks()"
 	local -i retval_int=0 # success
 
 	if [ "$(get_volume_status)" -eq $GVS_CLOSED ] ; then
 		# Confirm that the deletion candidate is actually a LUKS volume
 		if mount_luks ; then
+			# take a short nap after mount because sometimes (under high system load) umount would fail
+			# with "umount: /mnt/luksman/TEST01-28240: target is busy."
+			sleep 2
 			# unmount the encrypted filesystem and close the LUKS object
 			if umount "$LuksMountPoint" ; then
 				if cryptsetup close "$LuksMap" ; then
@@ -498,6 +564,7 @@ function delete_luks {
 						luks_dev=$Device
 					fi
 					# overwrite the LUKS storage area with some random data
+					# TODO : a better way to wipe a LUKS header is to use the luksErase command
 					local -ri rnd_length=20 # MiB
 					print_line $stdin "overwriting $luks_dev with $rnd_length MiB random data" 
 					if ! dd if=/dev/urandom of="$luks_dev" bs=1M count=$rnd_length conv=fsync ; then 
@@ -550,6 +617,7 @@ function delete_luks {
 }
 
 function print_info {
+	print_line $stdebug "print_info()"
 	local -i status_int ; status_int=$(get_volume_status)
 	local open_text=''
 	case $status_int in
@@ -568,6 +636,7 @@ function print_info {
 }
 
 function print_list {
+	print_line $stdebug "print_list()"
 	local path=''
 	find /dev/mapper -type l -print0 |while IFS= read -r -d '' path
 	do
@@ -579,6 +648,7 @@ function print_list {
 }
 
 function exec_action {
+	print_line $stdebug "exec_action($Action)"
 	local -i retval_int=0 # success
 	case "$Action" in
 	"$ACT_CREATE") if [ "$(get_volume_status)" -eq $GVS_CLOSED ] ; then
@@ -629,15 +699,15 @@ function usage {
 	print_line $stdin "$APPNAME v$VERSION usage"
 	local n0="    $APPNAME"
 	print_line $stdin "create volume in a file container or a device"
-	print_line $stdin "$n0 $ACT_CREATE name (-f folder -s size_MiB | -d device) [(-k keyfile_device | -K keyfile_disk_label)] -o owner_name "
+	print_line $stdin "$n0 $ACT_CREATE name (-f folder -s size_MiB | -d device) [(-k keyfile_device | -l keyfile_disk_label)] -o owner_name "
 	print_line $stdin "add or replace a key file"
-	print_line $stdin "$n0 $ACT_NEWKEY name (-f folder | -d device) (-k keyfile_device | -K keyfile_disk_label)"
+	print_line $stdin "$n0 $ACT_NEWKEY name (-f folder | -d device) (-k keyfile_device | -l keyfile_disk_label)"
 	print_line $stdin "mount volume"
-	print_line $stdin "$n0 $ACT_MOUNT name (-f folder | -d device) [(-k keyfile_device | -K keyfile_disk_label)]"
+	print_line $stdin "$n0 $ACT_MOUNT name (-f folder | -d device) [(-k keyfile_device | -l keyfile_disk_label)]"
 	print_line $stdin "unmount volume(s)"
 	print_line $stdin "$n0 $ACT_UNMOUNT (name | all)"
 	print_line $stdin "delete volume"
-	print_line $stdin "$n0 $ACT_DELETE name (-f folder | -d device) [(-k keyfile_device | -K keyfile_disk_label)]"
+	print_line $stdin "$n0 $ACT_DELETE name (-f folder | -d device) [(-k keyfile_device | -l keyfile_disk_label)]"
 	print_line $stdin "print volume information"
 	print_line $stdin "$n0 $ACT_INFO name"
 	print_line $stdin "list mounted volumes"
@@ -645,6 +715,7 @@ function usage {
 }
 
 function check_args {
+	print_line $stdebug "check_args($Action $Name)"
 	local -i retval_int=1 # error
 	local -ri VOLUME_MIN_SIZE=17 # because LUKS takes a 16 MiB overhead
 	if [ "$Action" = $ACT_LIST ] ; then
@@ -669,7 +740,7 @@ function check_args {
 			"$ACT_UNMOUNT" | "$ACT_INFO") retval_int=0 ;;
 			esac
 			if [ $retval_int -eq 0 ] ; then
-				# check optional arguments -k -K
+				# check optional arguments -k -l
 				if [ -n "$KeyDev" ] && [ -n "$KeyLabel" ] ; then retval_int=1 ; fi
 				if [ -n "$KeyDev" ] || [ -n "$KeyLabel" ] ; then
 					if [ "$Action" = "$ACT_UNMOUNT" ] || [ "$Action" = "$ACT_INFO" ] ; then
@@ -737,7 +808,7 @@ declare Owner=''
 declare KeyDev=''
 declare KeyLabel=''
 if [ $# -ne 0 ] ; then
-	while getopts f:s:d:o:k:K: option
+	while getopts f:s:d:o:k:l: option
 	do
 		case $option in
 		f) Folder=$OPTARG ;;
@@ -745,7 +816,7 @@ if [ $# -ne 0 ] ; then
 		d) Device=$OPTARG ;;
 		o) Owner=$OPTARG ;;
 		k) KeyDev=$OPTARG ;;
-		K) KeyLabel=$OPTARG ;;
+		l) KeyLabel=$OPTARG ;;
 		*) usage ; exit 1;;
 		esac
 	done
@@ -772,7 +843,7 @@ if [ -n "$Name" ] ; then # ACT_LIST takes no args, hence Name is empty
 fi
 if check_args ; then
 	if [ -n "$Name" ] ; then
-		KeyDev=$(get_key_device) # if option -K then use device from label else use device given by option -k
+		KeyDev=$(get_key_device) # if option -l then use device from label else use device given by option -k
 		if [ -n "$KeyDev" ] ; then 
 			KeyFile="$KeyMountPoint/$APPNAME/$Name.key"
 			mkdir -p "$KeyMountPoint"
