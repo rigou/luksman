@@ -288,7 +288,7 @@ function create_luks {
 			print_line $stdin "assigning $FileContainer to $Owner"
 			touch "$FileContainer"
 			chown "$Owner": "$FileContainer" 2>/dev/null # silently fails with Fat/exFat filesystems
-			print_line $stdin "overwriting $FileContainer with $Size MiB random data"
+			print_line $stdin "filling $FileContainer with $Size MiB random data"
 			# option conv=fsync used to prevent possible premature device removal
 			if dd if=/dev/urandom of="$FileContainer" bs=1M count=$Size conv=fsync status=progress ; then
 				luks_dev=$(attach_file_container)
