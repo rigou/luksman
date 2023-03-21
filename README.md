@@ -38,25 +38,25 @@ echo "alias lum='sudo /usr/local/sbin/luksman'" >>$HOME/.bashrc
 sudo luksman action [volume_name [options]]
 ```
 **Actions :**
-* create : create an encrypted volume
-* newkey : add or replace a key file
-* mount : mount an encrypted volume
-* unmount : unmount encrypted volume(s)
-* delete : delete an encrypted volume and its key file
-* info : print volume information
-* list : list mounted volumes
+* **create** : create an encrypted volume
+* **newkey** : add or replace a key file
+* **mount** : mount an encrypted volume
+* **unmount** : unmount encrypted volume(s)
+* **delete** : delete an encrypted volume and its key file
+* **info** : print volume information
+* **list** : list mounted volumes
 
 **Volume name :**
 * this name uniquely identifies an encrypted volume. The key file (if any) and the container file (if any) are named after it. 
 * for ease of use avoid spaces in this name and do not use common illegal characters or symbols for file names : / (forward slash), < (less than), > (greater than), : (colon), " (double quote), \ (backslash), | (vertical bar or pipe), ? (question mark), * (asterisk).
 
 **Options :**
-* -d path of the disk partition where the encrypted volume is (or will be) located
-* -f path of the folder where the container file is (or will be) located. An absolute path is recommended ; a relative path will be interpreted as relative to your home directory. Options -d and -f are mutually exclusive.
-* -s size of the container file which will be created, in MB (1024x1024). The minimum size is 17 MB. Does not apply to volumes backed by a disk partition.
-* -o logname of the owner of the filesystem which will be created in the encrypted volume
-* -k path of the disk partition where the key file is (or will be) located
-* -l label of the filesystem where the key file is (or will be) located
+* **-d** path of the disk partition where the encrypted volume is (or will be) located
+* **-f** path of the folder where the container file is (or will be) located. An absolute path is recommended ; a relative path will be interpreted as relative to your home directory. Options -d and -f are mutually exclusive.
+* **-s** size of the container file which will be created, in MB (1024x1024). The minimum size is 17 MB. Does not apply to volumes backed by a disk partition.
+* **-o** logname of the owner of the filesystem which will be created in the encrypted volume
+* **-k** path of the disk partition where the key file is (or will be) located
+* **-l** label of the filesystem where the key file is (or will be) located
 
 ### 1. Create an encrypted volume
 ```console
