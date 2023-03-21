@@ -1,5 +1,4 @@
 #!/bin/bash
-# to exit the loop cleanly : touch $HOME/test/STOP
 
 # readonly BlockDev='/dev/sdc1'
 # readonly KeyDev='/dev/sdb1'
@@ -20,8 +19,8 @@ if [ "$(id -u)" != '0' ] ; then
 	exit 1
 fi
 
-echo "$(date '+%Y%m%dT%H%M') $(basename "$0" '.sh') (pid=$$) BEGIN"
 cd "$HOMEDIR/bin" || exit_error
+rm -f "$LocalDir/STOP"
 
 # verify that the key drive is available
 declare tmp_mount ; tmp_mount="/tmp/$(basename "$0" '.sh')-mount-$$.tmp"
@@ -35,12 +34,14 @@ else
 fi
 mkdir -p "$LocalDir"
 
+# run test until you issue this command: touch $HOME/test/STOP
+declare -i iteration=0
 while ! [ -f "$LocalDir/STOP" ] ; do
+    iteration+=1
+    echo "$(date '+%Y%m%dT%H%M') $(basename "$0" '.sh') iteration $iteration BEGIN"
     if ! ./testluksman_param.sh "TEST02" -f "$LocalDir" -l "$KeyLabel" ; then
         exit_error
     fi
+    echo "$(date '+%Y%m%dT%H%M') $(basename "$0" '.sh') iteration $iteration END"
     sleep $((RANDOM % 10 + 1))
 done
-
-echo "found $LocalDir/STOP"
-echo "$(date '+%Y%m%dT%H%M') $(basename "$0" '.sh') (pid=$$) END"
