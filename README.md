@@ -23,18 +23,18 @@ sudo apt update
 sudo apt install cryptsetup-bin
 ```
 Download the latest release of luksman at https://github.com/rigou/luksman/releases
-```
+```console
 tar xzf luksman_vx.y.z.tar.gz
 sudo chown root: luksman
 sudo chmod 770 luksman
 sudo mv luksman /usr/local/sbin
 ```
 *optionally, add this convenient alias :*
-```
+```console
 echo "alias lum='sudo /usr/local/sbin/luksman'" >>$HOME/.bashrc
 ```
 ## Usage
-```
+```console
 sudo luksman action [volume_name [options]]
 ```
 **Actions :**
@@ -59,7 +59,7 @@ sudo luksman action [volume_name [options]]
 * -l label of the filesystem where the key file is (or will be) located
 
 ### 1. Create an encrypted volume
-```
+```console
 sudo luksman create name (-f folder -s size_MB | -d device) [(-k keyfile_device | -l keyfile_disk_label)] -o owner_name
 ```
 * option -o is required, it specifies the owner of the filesystem
@@ -70,34 +70,34 @@ sudo luksman create name (-f folder -s size_MB | -d device) [(-k keyfile_device 
 <details><summary>click here to see some examples</summary>
 
 **Create a 128 MB encrypted volume in a container file named CLASSIFIED in the folder /home/scott, prompting user for a passphrase :**
-```
+```console
 luksman create CLASSIFIED -f /home/scott -s 128 -o scott
 ```
 **Create a 128 MB encrypted volume in a container file named CLASSIFIED, store it in the folder /home/scott, generate a random key and write it in a key file located in the flash drive labeled MYKEYS :**
-```
+```console
 luksman create CLASSIFIED -f /home/scott -s 128 -l MYKEYS -o scott
 ```
 **Create a 128 MB encrypted volume in a container file named CLASSIFIED, store it in the folder /home/scott, generate a random key and write it in a key file located in the flash drive at /dev/sdb1 :**
-```
+```console
 luksman create CLASSIFIED -f /home/scott -s 128 -k /dev/sdb1 -o scott
 ```
 **Create an encrypted volume in the disk partition /dev/sda3, prompting user for a passphrase :**
-```
+```console
 luksman create CLASSIFIED -d /dev/sda3 -o scott
 ```
 **Create an encrypted volume in the disk partition /dev/sda3, generate a random key and write it in a key file located in the flash drive labeled MYKEYS :**
-```
+```console
 luksman create CLASSIFIED -d /dev/sda3 -l MYKEYS -o scott
 ```
 **Create an encrypted volume in the disk partition /dev/sda3, generate a random key and write it in a key file located in the flash drive at /dev/sdb1 :**
-```
+```console
 luksman create CLASSIFIED -d /dev/sda3 -k /dev/sdb1 -o scott
 ```
 </details>
 
 
 ### 2. Add or replace a key file
-```
+```console
 luksman newkey name (-f folder | -d device) (-k keyfile_device | -l keyfile_disk_label)
 ```
 * use this command to change the key of an encrypted volume
@@ -108,25 +108,25 @@ luksman newkey name (-f folder | -d device) (-k keyfile_device | -l keyfile_disk
 <details><summary>click here to see some examples</summary>
 
 **Add or replace the key file of the encrypted volume named CLASSIFIED in the folder /home/scott, and write this key file in the flash drive labeled MYKEYS :**
-```
+```console
 luksman newkey CLASSIFIED -f /home/scott -l MYKEYS
 ```
 **Add or replace the key file of the encrypted volume in the disk partition /dev/sda3, and write this key file in the flash drive labeled MYKEYS :**
-```
+```console
 luksman newkey CLASSIFIED -d /dev/sda3 -l MYKEYS
 ```
 **Add or replace the key file of the encrypted volume named CLASSIFIED in the folder /home/scott, and write this key file in the flash drive at /dev/sdb1 :**
-```
+```console
 luksman newkey CLASSIFIED -f /home/scott -k /dev/sdb1
 ```
 **Add or replace the key file of the encrypted volume in the disk partition /dev/sda3, and write this key file in the flash drive labeled at /dev/sdb1 :**
-```
+```console
 luksman newkey CLASSIFIED -d /dev/sda3 -k /dev/sdb1
 ```
 </details>
 
 ### 3. Mount an encrypted volume
-```
+```console
 luksman mount name (-f folder | -d device) [(-k keyfile_device | -l keyfile_disk_label)]
 ```
 * if the volume was created using a passphrase, user will be prompted for it
@@ -137,33 +137,33 @@ luksman mount name (-f folder | -d device) [(-k keyfile_device | -l keyfile_disk
 <details><summary>click here to see some examples</summary>
 
 **Mount the encrypted volume named CLASSIFIED located in the folder /home/scott, prompting user for a passphrase :**
-```
+```console
 luksman mount CLASSIFIED -f /home/scott
 ```
 **Mount the encrypted volume named CLASSIFIED located in the folder /home/scott, using a key file in the flash drive labeled MYKEYS :**
-```
+```console
 luksman mount CLASSIFIED -f /home/scott -l MYKEYS
 ```
 **Mount the encrypted volume named CLASSIFIED located in the folder /home/scott, using a key file in the flash drive at /dev/sdb1 :**
-```
+```console
 luksman mount CLASSIFIED -f /home/scott -k /dev/sdb1
 ```
 **Mount the encrypted volume located in the disk partition /dev/sda3, prompting user for a passphrase :**
-```
+```console
 luksman mount CLASSIFIED -d /dev/sda3
 ```
 **Mount the encrypted volume located in the disk partition /dev/sda3, using a key file in the flash drive labeled MYKEYS :**
-```
+```console
 luksman mount CLASSIFIED -d /dev/sda3 -l MYKEYS
 ```
 **Mount the encrypted volume located in the disk partition /dev/sda3, using a key file in the flash drive at /dev/sdb1 :**
-```
+```console
 luksman mount CLASSIFIED -d /dev/sda3 -k /dev/sdb1
 ```
 </details>
 
 ### 4. Unmount encrypted volume(s)
-```
+```console
 luksman unmount (name | all)
 ```
 * this command applies to any encrypted volume, either located in a container file or in a disk partition
@@ -172,17 +172,17 @@ luksman unmount (name | all)
 <details><summary>click here to see some examples</summary>
 
 **Unmount the encrypted volume named "CLASSIFIED" :**
-```
+```console
 luksman unmount CLASSIFIED
 ```
 **Unmount all encrypted volumes that are currently mounted :**
-```
+```console
 luksman unmount all
 ```
 </details>
 
 ### 5. Delete an encrypted volume
-```
+```console
 luksman delete name (-f folder | -d device) [(-k keyfile_device | -l keyfile_disk_label)]
 ```
 * WARNING: This operation is irreversible
@@ -194,54 +194,54 @@ luksman delete name (-f folder | -d device) [(-k keyfile_device | -l keyfile_dis
 <details><summary>click here to see some examples</summary>
 
 **Delete the encrypted volume named CLASSIFIED located in the folder /home/scott, prompting user for a passphrase :**
-```
+```console
 luksman delete CLASSIFIED -f /home/scott
 ```
 **Delete the encrypted volume named CLASSIFIED located in the folder /home/scott, and the key file in the flash drive labeled MYKEYS :**
-```
+```console
 luksman delete CLASSIFIED -f /home/scott -l MYKEYS
 ```
 **Delete the encrypted volume named CLASSIFIED located in the folder /home/scott, and the key file in the flash drive at /dev/sdb1 :**
-```
+```console
 luksman delete CLASSIFIED -f /home/scott -k /dev/sdb1
 ```
 **Delete the encrypted volume located in the disk partition /dev/sda3, prompting user for a passphrase :**
-```
+```console
 luksman delete CLASSIFIED -d /dev/sda3
 ```
 **Delete the encrypted volume located in the disk partition /dev/sda3, and the key file in the flash drive labeled MYKEYS :**
-```
+```console
 luksman delete CLASSIFIED -d /dev/sda3 -l MYKEYS
 ```
 **Delete the encrypted volume located in the disk partition /dev/sda3, and the key file in the flash drive at /dev/sdb1 :**
-```
+```console
 luksman delete CLASSIFIED -d /dev/sda3 -k /dev/sdb1
 ```
 </details>
 
 ### 6. Print encrypted volume information
-```
+```console
 luksman info name
 ```
 this command prints the mount state of given encrypted volume
 
 <details><summary>click here to see an example</summary>
 
-```
+```console
 luksman info CLASSIFIED
 -> CLASSIFIED is mounted at /mnt/luksman/CLASSIFIED
 ```
 </details>
 
 ### 7. List mounted volumes
-```
+```console
 luksman list
 ```
 this command prints the mountpoints of all currently mounted encrypted volumes
 
 <details><summary>click here to see an example</summary>
 
-```
+```console
 luksman list
 -> /mnt/luksman/CLASSIFIED
 -> /mnt/luksman/CONFIDENTIAL
