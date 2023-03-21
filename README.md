@@ -18,7 +18,7 @@ These features cover 99% of the author's needs. If your requirements are more co
 
 ## Installation
 Install the required package ``cryptsetup-bin``
-```bash
+```console
 sudo apt update
 sudo apt install cryptsetup-bin
 ```
