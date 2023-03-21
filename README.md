@@ -1,22 +1,24 @@
 # luksman
-**A simple manager for LUKS encrypted volumes**\
+**A simple manager for encrypted volumes**\
 With ``luksman`` you can easily create, mount and unmount encrypted storage in your GNU/Linux computer. These operations would normally require several arcane commands involving losetup, cryptsetup and filesystem management but with ``luksman`` you can can do all this with a single command and some easy to remember options.
 
 Main Repository : https://github.com/rigou/luksman
 
+*This program is distributed in the hope that it will be useful, but WITHOUT ANY WARRANTY.*
+
 ## Features
 * you can create / mount / unmount LUKS encrypted volumes with a single command
-* you can use a file container or a disk partition to store an encrypted volume
+* you can use a container file or a disk partition to store an encrypted volume
 * you can enter a passphrase interactively when creating / opening an encrypted volume, or use a key file
 * key files may conveniently reside in a removable flash drive, allowing you to take them with you when you leave your computer unattended
 * you can revoke a key file and generate a new one if you think it has been compromised
 * you can delete an encrypted volume and its key file
 
-These features cover 99% of the author's needs. If your requirements are more complex, you can still use cryptsetup on the encrypted volumes created by ``luksman`` and do whatever you want.
+These features cover 99% of the author's needs. If your requirements are more complex, you can still use [cryptsetup](https://wiki.archlinux.org/title/dm-crypt/Device_encryption) on the encrypted volumes created by ``luksman`` and do whatever you want.
 
 ## Installation
 Install the required package ``cryptsetup-bin``
-```
+```Shell
 sudo apt update
 sudo apt install cryptsetup-bin
 ```
@@ -45,39 +47,39 @@ sudo luksman action [volume_name [options]]
 * list : list mounted volumes
 
 **Volume name :**
-* this name uniquely identifies an encrypted volume. The key file (if any) and the file container (if any) are named after it. 
+* this name uniquely identifies an encrypted volume. The key file (if any) and the container file (if any) are named after it. 
 * for ease of use avoid spaces in this name and do not use common illegal characters or symbols for file names : / (forward slash), < (less than), > (greater than), : (colon), " (double quote), \ (backslash), | (vertical bar or pipe), ? (question mark), * (asterisk).
 
 **Options :**
 * -d path of the disk partition where the encrypted volume is (or will be) located
-* -f path of the folder where the file container is (or will be) located. An absolute path is recommended ; a relative path will be interpreted as relative to your home directory
-* -s size of the file container which will be created, in MiB. The minimum size is 17 MiB
+* -f path of the folder where the container file is (or will be) located. An absolute path is recommended ; a relative path will be interpreted as relative to your home directory. Options -d and -f are mutually exclusive.
+* -s size of the container file which will be created, in MB (1024x1024). The minimum size is 17 MB. Does not apply to volumes backed by a disk partition.
 * -o logname of the owner of the filesystem which will be created in the encrypted volume
 * -k path of the disk partition where the key file is (or will be) located
 * -l label of the filesystem where the key file is (or will be) located
 
 ### 1. Create an encrypted volume
 ```
-sudo luksman create name (-f folder -s size_MiB | -d device) [(-k keyfile_device | -l keyfile_disk_label)] -o owner_name
+sudo luksman create name (-f folder -s size_MB | -d device) [(-k keyfile_device | -l keyfile_disk_label)] -o owner_name
 ```
 * option -o is required, it specifies the owner of the filesystem
 * when using option -d, the current contents of the partition will be lost ; use ``lsblk`` to double-check the device name
-* when using option -f, the file container will be created in the specified folder with the given name and the ".dat" extension
+* when using option -f, the container file will be created in the specified folder with the given name and the ".dat" extension
 * when using option -k or -l, the key file will be created in the "/luksman" folder of the specified device with the given name and the ".key" extension
 
 <details><summary>click here to see some examples</summary>
 
-**Create a 256 MiB encrypted volume in a file container named CLASSIFIED in the folder /home/scott, prompting user for a passphrase :**
+**Create a 128 MB encrypted volume in a container file named CLASSIFIED in the folder /home/scott, prompting user for a passphrase :**
 ```
-luksman create CLASSIFIED -f /home/scott -s 256 -o scott
+luksman create CLASSIFIED -f /home/scott -s 128 -o scott
 ```
-**Create a 256 MiB encrypted volume in a file container named CLASSIFIED, store it in the folder /home/scott, generate a random key and write it in a key file located in the flash drive labeled MYKEYS :**
+**Create a 128 MB encrypted volume in a container file named CLASSIFIED, store it in the folder /home/scott, generate a random key and write it in a key file located in the flash drive labeled MYKEYS :**
 ```
-luksman create CLASSIFIED -f /home/scott -s 256 -l MYKEYS -o scott
+luksman create CLASSIFIED -f /home/scott -s 128 -l MYKEYS -o scott
 ```
-**Create a 256 MiB encrypted volume in a file container named CLASSIFIED, store it in the folder /home/scott, generate a random key and write it in a key file located in the flash drive at /dev/sdb1 :**
+**Create a 128 MB encrypted volume in a container file named CLASSIFIED, store it in the folder /home/scott, generate a random key and write it in a key file located in the flash drive at /dev/sdb1 :**
 ```
-luksman create CLASSIFIED -f /home/scott -s 256 -k /dev/sdb1 -o scott
+luksman create CLASSIFIED -f /home/scott -s 128 -k /dev/sdb1 -o scott
 ```
 **Create an encrypted volume in the disk partition /dev/sda3, prompting user for a passphrase :**
 ```
@@ -164,7 +166,7 @@ luksman mount CLASSIFIED -d /dev/sda3 -k /dev/sdb1
 ```
 luksman unmount (name | all)
 ```
-* this command applies to any encrypted volume, either located in a file container or in a disk partition
+* this command applies to any encrypted volume, either located in a container file or in a disk partition
 * use argument "all" to unmount all volumes that are currently mounted
 
 <details><summary>click here to see some examples</summary>
@@ -186,7 +188,7 @@ luksman delete name (-f folder | -d device) [(-k keyfile_device | -l keyfile_dis
 * WARNING: This operation is irreversible
 * if no key file is specified by option -k or -l, user will be prompted for a passphrase
 * the LUKS header of the encrypted volume will be overwritten with random characters, making it permanently inaccessible
-* if the encrypted volume resides in a file container, this file will be deleted
+* if the encrypted volume resides in a container file, this file will be deleted
 * if there is a key file for this volume in the device specified by option -k or -l, this file will be deleted
 
 <details><summary>click here to see some examples</summary>
