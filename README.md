@@ -62,10 +62,10 @@ sudo luksman action [volume_name [options]]
 ```console
 sudo luksman create name (-d device | -f folder -s size_MB) [(-k keyfile_device | -l keyfile_disk_label)] -o owner_name
 ```
-* option -o is required, it specifies the owner of the filesystem
-* when using option -d, the current contents of the partition will be lost ; use ``lsblk`` to double-check the device name
+* WARNING: when using option -d, the current contents of the partition will be lost ; use ``lsblk`` to double-check the device name
 * when using option -f, the container file will be created in the specified folder with the given name and the ".dat" extension
 * when using option -k or -l, the key file will be created in the "/luksman" folder of the specified device with the given name and the ".key" extension
+* option -o is required, it specifies the owner of the filesystem of the new volume
 
 <details><summary>click here to see some examples</summary>
 
