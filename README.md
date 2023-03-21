@@ -60,7 +60,7 @@ sudo luksman action [volume_name [options]]
 
 ### 1. Create an encrypted volume
 ```console
-sudo luksman create name (-f folder -s size_MB | -d device) [(-k keyfile_device | -l keyfile_disk_label)] -o owner_name
+sudo luksman create name (-d device | -f folder -s size_MB) [(-k keyfile_device | -l keyfile_disk_label)] -o owner_name
 ```
 * option -o is required, it specifies the owner of the filesystem
 * when using option -d, the current contents of the partition will be lost ; use ``lsblk`` to double-check the device name
@@ -98,7 +98,7 @@ luksman create CLASSIFIED -d /dev/sda3 -k /dev/sdb1 -o scott
 
 ### 2. Add or replace a key file
 ```console
-luksman newkey name (-f folder | -d device) (-k keyfile_device | -l keyfile_disk_label)
+luksman newkey name (-d device | -f folder) (-k keyfile_device | -l keyfile_disk_label)
 ```
 * use this command to change the key of an encrypted volume
 * this command generates a new key and writes it in a key file, the existing key will be revoked and the key file will be replaced
@@ -127,7 +127,7 @@ luksman newkey CLASSIFIED -d /dev/sda3 -k /dev/sdb1
 
 ### 3. Mount an encrypted volume
 ```console
-luksman mount name (-f folder | -d device) [(-k keyfile_device | -l keyfile_disk_label)]
+luksman mount name (-d device | -f folder) [(-k keyfile_device | -l keyfile_disk_label)]
 ```
 * if the volume was created using a passphrase, user will be prompted for it
 * if there is a key file for this volume in the device specified by option -k or -l, it will be used to mount the encrypted volume automatically
@@ -183,7 +183,7 @@ luksman unmount all
 
 ### 5. Delete an encrypted volume
 ```console
-luksman delete name (-f folder | -d device) [(-k keyfile_device | -l keyfile_disk_label)]
+luksman delete name (-d device | -f folder) [(-k keyfile_device | -l keyfile_disk_label)]
 ```
 * WARNING: This operation is irreversible
 * if no key file is specified by option -k or -l, user will be prompted for a passphrase
