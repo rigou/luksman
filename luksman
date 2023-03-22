@@ -19,15 +19,13 @@ readonly VERSION='1.4.0'
 
 # output user-readable messages
 declare -i DEBUG_ENABLED=0 # 1=enabled, 0=disabled
-declare -i stdin=1
+declare -i stdout=1
 declare -i stderr=2
 declare -i stdebug=3
 function print_line {
 	case $1 in
-		"$stdin") echo "$2" ;;
-
+		"$stdout") echo "$2" ;;
 		"$stderr") echo "$2" 1>&2 ;;
-
 		"$stdebug") if [ $DEBUG_ENABLED -eq 1 ] ; then echo "DEBUG $2" 1>&2 ; fi ;;
 	esac
 }
@@ -51,25 +49,12 @@ function sanitize_name {
     fi
 }
 
-function get_key_device {
-	print_line $stdebug "get_key_device()"
-	local keydev_from_label=''
-	if [ -n "$KeyLabel" ] ; then
-		keydev_from_label=$(readlink -fe "/dev/disk/by-label/$KeyLabel")
-		if [ -n "$keydev_from_label" ] ; then
-			echo "$keydev_from_label" # empty string if label not found
-		fi
-	elif [ -n "$KeyDev" ] ; then
-		echo "$KeyDev"
-	fi
-}
-
 function get_temp_keyfile {
 	echo "$KeyFile.tmp"
 }
 
 function validate_temp_keyfile {
-	print_line $stdin "validating new key file"
+	print_line $stdout "validating new key file"
 	mv -f "$(get_temp_keyfile)" "$KeyFile"
 	return $?
 }
@@ -84,7 +69,7 @@ function create_temp_keyfile {
 	print_line $stdebug "create_temp_keyfile()"
 	local -i retval=0 # success
 	local temp_keyfile ; temp_keyfile=$(get_temp_keyfile)
-	print_line $stdin "generating new key file"
+	print_line $stdout "generating new key file"
 	local key ; key=$(LC_ALL=C tr -dc 'A-Za-z0-9_\+\-*/=,?;.:/!$&#{[|]}@%&$"~^' < /dev/random | head -c 33)
 	mkdir -p "$(dirname "$temp_keyfile")"
 	if ! echo -n "$key" >"$temp_keyfile" ; then
@@ -113,6 +98,59 @@ function unmount_key {
 	else
 		print_line $stderr "key not found at $KeyMountPoint"
 		retval=0 # ignore this error
+	fi
+	return $retval
+}
+
+# Retrieve a disk device from its uuid and check that this device is valid
+# arg1=disk uuid : print the device corresponding to given uuid
+#	if this uuid is invalid or empty, print nothing
+# arg1=path of a device in /dev : print arg1
+#	if this device is invalid or empty, print nothing
+function get_disk_device {
+	print_line $stdebug "get_disk_device()"
+	local -i retval=0 # 0=success
+	local disk_id=$1 # either /dev/sdxy or uuid
+	if [ -n "$disk_id" ] ; then
+		if [ "${disk_id:0:1}" != '/' ] ; then
+			local dev_from_uuid=''
+			dev_from_uuid=$(readlink -fe "/dev/disk/by-uuid/$disk_id")
+			if [ -n "$dev_from_uuid" ] ; then
+				echo "$dev_from_uuid" # else empty string if uuid not found
+			else
+				retval=1 # error
+			fi
+		else
+			if [ -b "$disk_id" ] ; then
+				# a valid disk device
+				echo "$disk_id" # else empty string if device not found
+			else
+				retval=1 # error
+			fi
+		fi
+	else
+		retval=1 # error
+	fi
+	return $retval
+}
+
+# Retrieve a disk device from its label and check that this device is valid
+# arg1=label, as specified with option -l
+#	if this label is invalid or empty, print nothing
+function get_disk_device_from_label {
+	print_line $stdebug "get_disk_device_from_label()"
+	local -i retval=0 # 0=success
+	local disk_label=$1
+	local dev_from_label=''
+	if [ -n "$disk_label" ] ; then
+		dev_from_label=$(readlink -fe "/dev/disk/by-label/$disk_label")
+		if [ -n "$dev_from_label" ] ; then
+			echo "$dev_from_label" # else empty string if label not found
+		else
+			retval=1 # error
+		fi
+	else
+		retval=1 # error
 	fi
 	return $retval
 }
@@ -272,14 +310,14 @@ function create_luks {
 	# test for existing filesystem on the device
 	if [ $retval -eq 0 ] && [ -n "$Device" ] ; then
 		if mount -r "$Device" "$DevMountPoint" 2>/dev/null ; then
-			print_line $stdin "$Device appears to contain an existing filesystem ($(findmnt -n -o FSTYPE "$DevMountPoint")) : it will be deleted"
+			print_line $stdout "$Device appears to contain an existing filesystem ($(findmnt -n -o FSTYPE "$DevMountPoint")) : it will be deleted"
 			umount "$DevMountPoint"
 			while : ; do
 				read -r -p "are you sure (YES/no) ? " yn
 				case $yn in
 					YES) retval=0 ; break ;;
 					no) retval=1 ; break ;;
-					*) print_line $stdin "please answer YES or no" ;;
+					*) print_line $stdout "please answer YES or no" ;;
 				esac
 			done
 		fi
@@ -287,10 +325,10 @@ function create_luks {
 
 	if [ $retval -eq 0 ] ; then
 		if [ -n "$ContainerFile" ] ; then
-			print_line $stdin "assigning $ContainerFile to $Owner"
+			print_line $stdout "assigning $ContainerFile to $Owner"
 			touch "$ContainerFile"
 			chown "$Owner": "$ContainerFile" 2>/dev/null # silently fails with Fat/exFat filesystems
-			print_line $stdin "filling $ContainerFile with $Size MB random data"
+			print_line $stdout "filling $ContainerFile with $Size MB random data"
 			if head -c ${Size}M /dev/urandom > "$ContainerFile" ; then
 				luks_dev=$(attach_container_file)
 				if [ "$luks_dev" != 'ERROR'  ] ; then
@@ -310,7 +348,7 @@ function create_luks {
 	if [ $retval -eq 0 ] ; then
 		if [ -n "$KeyDev" ] ; then
 			if create_temp_keyfile ; then
-				print_line $stdin "formatting $Name"
+				print_line $stdout "formatting $Name"
 				if cryptsetup luksFormat --key-file="$(get_temp_keyfile)" -q "$luks_dev" ; then
 					if cryptsetup open --type luks --key-file="$(get_temp_keyfile)" "$luks_dev" "$Name" ; then
 						luksopen_bool=1
@@ -324,7 +362,7 @@ function create_luks {
 				retval=1 # error
 			fi
 		else
-			print_line $stdin "formatting $Name"
+			print_line $stdout "formatting $Name"
 			if cryptsetup luksFormat -q  "$luks_dev" ; then
 				if cryptsetup open --type luks "$luks_dev" "$Name" ; then
 					luksopen_bool=1
@@ -339,7 +377,7 @@ function create_luks {
 
 	if [ $retval -eq 0 ] ; then
 		if mkfs -t ext4 -L "$Name" "$LuksMap" ; then
-			print_line $stdin "assigning $Name to $Owner"
+			print_line $stdout "assigning $Name to $Owner"
 			if mount "$LuksMap" "$LuksMountPoint" ; then
 				chown "$Owner": "$LuksMountPoint"
 				retval=$?
@@ -371,7 +409,7 @@ function create_luks {
 		unmount_key
 	fi
 	if [ $retval -eq 0 ] ; then
-		print_line $stdin "volume $Name is created"
+		print_line $stdout "volume $Name is created"
 	fi
 	return $retval
 }
@@ -399,24 +437,24 @@ function newkey_luks {
 		fi
 		if  [ $retval -eq 0 ] ; then
 			if [ -f "$KeyFile" ] ; then
-				print_line $stdin "replacing key file"
+				print_line $stdout "replacing key file"
 				if cryptsetup luksAddKey "$luks_dev"  --key-file "$KeyFile" "$(get_temp_keyfile)" ; then
-					print_line $stdin "removing old key"
+					print_line $stdout "removing old key"
 					if ! cryptsetup luksRemoveKey "$luks_dev" "$KeyFile" ; then
 						print_line $stderr "WARNING: failed to remove old key for $Name"
 					fi
-					print_line $stdin "key replaced for $Name"
+					print_line $stdout "key replaced for $Name"
 				else
 					retval=1 # error
 				fi
 			else
-				print_line $stdin "adding key file"
+				print_line $stdout "adding key file"
 				if cryptsetup luksAddKey "$luks_dev" "$(get_temp_keyfile)" ; then
-					print_line $stdin "removing old passphrase (enter invalid value to preserve it)"
+					print_line $stdout "removing old passphrase (enter invalid value to preserve it)"
 					if ! cryptsetup luksRemoveKey "$luks_dev"  ; then
 						print_line $stderr "WARNING: did not remove old key for $Name"
 					fi
-					print_line $stdin "key added to $Name"
+					print_line $stdout "key added to $Name"
 				else
 					retval=1 # error
 				fi
@@ -434,7 +472,7 @@ function newkey_luks {
 		retval=1 # error
 	fi
 	if [ $retval -eq 0 ] ; then
-		print_line $stdin "key registration complete"
+		print_line $stdout "key registration complete"
 	fi
 	return $retval
 }
@@ -468,7 +506,7 @@ function mount_luks {
 				fi
 			fi
 			if  [ $retval -eq 0 ] ; then
-				print_line $stdin "opening $Name"
+				print_line $stdout "opening $Name"
 				if [ -n "$KeyDev" ] ; then
 					cryptsetup open --type luks --key-file="$KeyFile" "$luks_dev" "$Name"
 				else
@@ -476,7 +514,7 @@ function mount_luks {
 				fi
 				retval=$?
 				if [ $retval -eq 0 ] ; then
-					print_line $stdin "mounting $Name"
+					print_line $stdout "mounting $Name"
 					mount "$LuksMap" "$LuksMountPoint"
 					retval=$?
 				fi
@@ -500,7 +538,7 @@ function unmount_luks {
 	case $status in
 
 	"$GVS_MOUNTED") # unmount step 1 : encrypted filesystem mounted
-		print_line $stdin "unmounting $Name"
+		print_line $stdout "unmounting $Name"
 		if umount "$LuksMountPoint" ; then
 			# take a short nap after umount because sometimes cryptsetup close would fail
 			# with "device-mapper: remove ioctl on PRO  failed: Device or resource busy"
@@ -568,13 +606,13 @@ function delete_luks {
 					# erase the LUKS header of the container and beyond
 					# as advised by "5.4 How do I securely erase a LUKS container?"
 					# https://gitlab.com/cryptsetup/cryptsetup/-/blob/main/FAQ.md
-					print_line $stdin "erasing $luks_dev"
+					print_line $stdout "erasing $luks_dev"
 					# ignore head error because if container size < 100M
 					# head warns "head: error writing 'standard output': No space left on device" 
 					head -c 100M /dev/urandom > "$luks_dev" 2>/dev/null
 					if is_attached_container_file "$Name" ; then
 						if detach_container_file ; then 
-							print_line $stdin "deleting $ContainerFile"
+							print_line $stdout "deleting $ContainerFile"
 							if ! rm "$ContainerFile" ; then
 								retval=6 # error
 							fi
@@ -598,7 +636,7 @@ function delete_luks {
 	if  [ $retval -eq 0 ] ; then
 		if [ -n "$KeyDev" ] ; then
 			if mount_key ; then
-				print_line $stdin "deleting $(basename "$KeyFile")"
+				print_line $stdout "deleting $(basename "$KeyFile")"
 				if ! rm "$KeyFile" ; then
 					retval=12
 				fi
@@ -610,10 +648,10 @@ function delete_luks {
 	fi
 	
 	if  [ $retval -eq 0 ] ; then
-		print_line $stdin "$Name is deleted"
+		print_line $stdout "$Name is deleted"
 	else
 		print_info
-		print_line $stdin "did not delete $Name, error $retval"
+		print_line $stdout "did not delete $Name, error $retval"
 	fi
 	return $retval
 }
@@ -633,7 +671,7 @@ function print_info {
 		print_line $stderr "$open_text"
 		print_line $stderr "try \"$(basename "$0") unmount $Name\" to fix this error"
 	else
-		print_line $stdin "$open_text"
+		print_line $stdout "$open_text"
 	fi
 }
 
@@ -644,7 +682,7 @@ function print_list {
 	do
 		local mountpoint ; mountpoint="/mnt/$APPNAME/$(basename "$path")"
 		if [ -d "$mountpoint" ] ; then
-			print_line $stdin "$mountpoint"
+			print_line $stdout "$mountpoint"
 		fi
 	done
 }
@@ -698,22 +736,22 @@ function exec_action {
 }
 
 function usage {
-	print_line $stdin "$APPNAME v$VERSION usage"
+	print_line $stdout "$APPNAME v$VERSION usage"
 	local n0="    $APPNAME"
-	print_line $stdin "create volume in a container file or a device"
-	print_line $stdin "$n0 $ACT_CREATE name (-f folder -s size_MB | -d device) [(-k keyfile_device | -l keyfile_disk_label)] -o owner_name "
-	print_line $stdin "add or replace a key file"
-	print_line $stdin "$n0 $ACT_NEWKEY name (-f folder | -d device) (-k keyfile_device | -l keyfile_disk_label)"
-	print_line $stdin "mount volume"
-	print_line $stdin "$n0 $ACT_MOUNT name (-f folder | -d device) [(-k keyfile_device | -l keyfile_disk_label)]"
-	print_line $stdin "unmount volume(s)"
-	print_line $stdin "$n0 $ACT_UNMOUNT (name | all)"
-	print_line $stdin "delete volume"
-	print_line $stdin "$n0 $ACT_DELETE name (-f folder | -d device) [(-k keyfile_device | -l keyfile_disk_label)]"
-	print_line $stdin "print volume information"
-	print_line $stdin "$n0 $ACT_INFO name"
-	print_line $stdin "list mounted volumes"
-	print_line $stdin "$n0 $ACT_LIST"
+	print_line $stdout "create volume in a container file or a device"
+	print_line $stdout "$n0 $ACT_CREATE name (-f folder -s size_MB | -d device) [(-k keyfile_device | -l keyfile_disk_label)] -o owner_name "
+	print_line $stdout "add or replace a key file"
+	print_line $stdout "$n0 $ACT_NEWKEY name (-f folder | -d device) (-k keyfile_device | -l keyfile_disk_label)"
+	print_line $stdout "mount volume"
+	print_line $stdout "$n0 $ACT_MOUNT name (-f folder | -d device) [(-k keyfile_device | -l keyfile_disk_label)]"
+	print_line $stdout "unmount volume(s)"
+	print_line $stdout "$n0 $ACT_UNMOUNT (name | all)"
+	print_line $stdout "delete volume"
+	print_line $stdout "$n0 $ACT_DELETE name (-f folder | -d device) [(-k keyfile_device | -l keyfile_disk_label)]"
+	print_line $stdout "print volume information"
+	print_line $stdout "$n0 $ACT_INFO name"
+	print_line $stdout "list mounted volumes"
+	print_line $stdout "$n0 $ACT_LIST"
 }
 
 function check_args {
@@ -764,8 +802,8 @@ function check_args {
 		if [ -n "$KeyDev" ] && ! [ -b "$KeyDev" ] ; then print_line $stderr "device $KeyDev not found" ; retval=2 ; fi
 		if [ -n "$Owner" ] && ! id "$Owner" 1>/dev/null 2>&1 ; then print_line $stderr "user $Owner not found" ; retval=2 ; fi
 		if [ -n "$KeyLabel" ] ; then
-			# get_key_device() returns empty string if label not found
-			if [ -z "$(get_key_device)" ] ; then
+			# get_disk_device_from_label() returns empty string if label not found
+			if [ -z "$(get_disk_device_from_label "$KeyLabel")" ] ; then
 				print_line $stderr "device not found with label $KeyLabel"
 				retval=2
 			fi
@@ -780,6 +818,8 @@ if [ "$(id -u)" != '0' ] ; then
 	print_line $stderr "$APPNAME must run as root, run it with sudo $APPNAME"
 	exit 1
 fi
+
+print_line $stdebug "$(date '+%Y%m%dT%H%M') $(basename "$0" '.sh') $* (pid=$$)"
 
 # Parse command line args
 readonly ACT_CREATE='create'
@@ -843,9 +883,25 @@ if [ -n "$Name" ] ; then # ACT_LIST takes no args, hence Name is empty
 	declare ContainerFile=''
 	declare KeyFile=''
 fi
+
+# convert UUIDs (if any) to device paths /dev/sdxy
+if [ -n "$Device" ] ; then
+	if get_disk_device "$Device" >/dev/null ; then
+		Device=$(get_disk_device "$Device")
+	fi
+fi
+if [ -n "$KeyDev" ] ; then
+	if get_disk_device "$KeyDev" >/dev/null ; then
+		KeyDev=$(get_disk_device "$KeyDev")
+	fi
+fi
+
 if check_args ; then
 	if [ -n "$Name" ] ; then
-		KeyDev=$(get_key_device) # if option -l then use device from label else use device given by option -k
+		if [ -n "$KeyLabel" ] ; then
+			# if a label is specified by option -l then retrieve the device path
+			KeyDev=$(get_disk_device_from_label "$KeyLabel")
+		fi
 		if [ -n "$KeyDev" ] ; then 
 			KeyFile="$KeyMountPoint/$APPNAME/$Name.key"
 			mkdir -p "$KeyMountPoint"
@@ -875,6 +931,7 @@ if check_args ; then
 			rmdir "$LuksMountPoint" 
 		fi
 	fi
+	print_line $stdebug "$(date '+%Y%m%dT%H%M') $(basename "$0" '.sh') $* (pid=$$) EXIT $Exitval"
 	exit $Exitval
 else
 	exit 1

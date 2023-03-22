@@ -1,8 +1,12 @@
 #!/bin/bash
+# interrupt the test sequence with this command: touch $HOME/test/STOP
 
 readonly BlockDev='/dev/sdc1'
+
 readonly KeyDev='/dev/sdb1'
+readonly KeyUUID='F55A-FCA5'
 readonly KeyLabel='LUKSMANDEV'
+
 readonly HOMEDIR="/home/${SUDO_USER:-$USER}"
 readonly LocalDir="$HOMEDIR/test"
 
@@ -20,7 +24,8 @@ if [ "$(id -u)" != '0' ] ; then
 fi
 
 echo "$(date '+%Y%m%dT%H%M') $(basename "$0" '.sh') (pid=$$) BEGIN"
-cd "/home/${SUDO_USER:-$USER}/bin" || exit_error
+cd "$HOMEDIR/bin" || exit_error
+rm -f "$LocalDir/STOP"
 
 # verify that the key drive is available
 declare tmp_mount ; tmp_mount="/tmp/$(basename "$0" '.sh')-mount-$$.tmp"
@@ -37,14 +42,59 @@ mkdir -p "$LocalDir"
 if ! ./testluksman_param.sh "TEST01" -f "$LocalDir" -k "$KeyDev" ; then
     exit_error
 fi
+if [ -f "$LocalDir/STOP" ] ; then
+    exit 0
+fi
 if ! ./testluksman_param.sh "TEST02" -f "$LocalDir" -l "$KeyLabel" ; then
     exit_error
 fi
-if ! ./testluksman_param.sh "TEST03" -d "$BlockDev" -k "$KeyDev" ; then
+if [ -f "$LocalDir/STOP" ] ; then
+    exit 0
+fi
+if ! ./testluksman_param.sh "TEST03" -f "$LocalDir" -k "$KeyUUID" ; then
     exit_error
 fi
-if ! ./testluksman_param.sh "TEST04" -d "$BlockDev" -l "$KeyLabel" ; then
+if [ -f "$LocalDir/STOP" ] ; then
+    exit 0
+fi
+
+if ! ./testluksman_param.sh "TEST11" -d "$BlockDev" -k "$KeyDev" ; then
     exit_error
 fi
+if [ -f "$LocalDir/STOP" ] ; then
+    exit 0
+fi
+if ! ./testluksman_param.sh "TEST12" -d "$BlockDev" -l "$KeyLabel" ; then
+    exit_error
+fi
+if [ -f "$LocalDir/STOP" ] ; then
+    exit 0
+fi
+if ! ./testluksman_param.sh "TEST13" -d "$BlockDev" -k "$KeyUUID" ; then
+    exit_error
+fi
+if [ -f "$LocalDir/STOP" ] ; then
+    exit 0
+fi
+
+if ! ./testluksman_param.sh "TEST21" -UUID "$BlockDev" -k "$KeyDev" ; then
+    exit_error
+fi
+if [ -f "$LocalDir/STOP" ] ; then
+    exit 0
+fi
+if ! ./testluksman_param.sh "TEST22" -UUID "$BlockDev" -l "$KeyLabel" ; then
+    exit_error
+fi
+if [ -f "$LocalDir/STOP" ] ; then
+    exit 0
+fi
+if ! ./testluksman_param.sh "TEST23" -UUID "$BlockDev" -k "$KeyUUID" ; then
+    exit_error
+fi
+if [ -f "$LocalDir/STOP" ] ; then
+    exit 0
+fi
+
 echo "$(date '+%Y%m%dT%H%M') $(basename "$0" '.sh') (pid=$$) SUCCESS"
 exit 0

@@ -26,12 +26,33 @@ function create_sample_text_file {
     done   
 }
 
+function get_vol_option {
+    if [ "$Vol_option" = '-UUID' ] ; then
+        echo '-d'
+    else
+        echo "$Vol_option"
+    fi
+}
+
+function get_vol_path {
+    if [ "$Vol_option" = '-UUID' ] ; then
+        local uuid=$(lsblk -n "$Vol_path" -o UUID)
+        if [ -n "$uuid" ] ; then
+            echo "$uuid"
+        else
+            echo "$Vol_path"
+        fi
+    else
+        echo "$Vol_path"
+    fi
+}
+
 #-----------------
 # BEGIN
 #-----------------
 
 readonly Name=$1-$$
-readonly Vol_option=$2 # (-d -f)
+readonly Vol_option=$2 # (-d -f -UUID)
 readonly Vol_path=$3
 readonly Key_option=$4 # (-k -l)
 readonly Key_path=$5
@@ -45,52 +66,62 @@ echo "writing sample data into $SAMPLE_TEXT_FILE"
 create_sample_text_file "$SAMPLE_TEXT_FILE"
 ls -l "$SAMPLE_TEXT_FILE"
 print_line
+
 if [ "$Vol_option" = '-f' ] ; then
 	if ! ./luksman create "$Name" "$Vol_option" "$Vol_path" "$Key_option" "$Key_path" -o "$User" -s 32 ; then
         exit_error "$@"
     fi
 else
-	if ! ./luksman create "$Name" "$Vol_option" "$Vol_path" "$Key_option" "$Key_path" -o "$User" ; then
+	if ! ./luksman create "$Name" "$(get_vol_option)" "$(get_vol_path)" "$Key_option" "$Key_path" -o "$User" ; then
         exit_error "$@"
     fi
 fi
 print_line
-if ! ./luksman mount "$Name" "$Vol_option" "$Vol_path" "$Key_option" "$Key_path" ; then
+
+if ! ./luksman mount "$Name" "$(get_vol_option)" "$(get_vol_path)" "$Key_option" "$Key_path" ; then
     exit_error "$@"
 fi
 print_line
+
 echo "writing sample data into /mnt/luksman/$Name/$(basename "$SAMPLE_TEXT_FILE")"
 if ! cp "$SAMPLE_TEXT_FILE" "/mnt/luksman/$Name/" ; then
     exit_error "$@"
 fi
 ls -l "/mnt/luksman/$Name/" |grep -v lost+found
 print_line
+
 if ! ./luksman unmount "$Name" ; then
     exit_error "$@"
 fi
 print_line
-if ! ./luksman newkey "$Name" "$Vol_option" "$Vol_path" "$Key_option" "$Key_path" ; then
+
+if ! ./luksman newkey "$Name" "$(get_vol_option)" "$(get_vol_path)" "$Key_option" "$Key_path" ; then
     exit_error "$@"
 fi
 print_line
-if ! ./luksman mount "$Name" "$Vol_option" "$Vol_path" "$Key_option" "$Key_path" ; then
+
+if ! ./luksman mount "$Name" "$(get_vol_option)" "$(get_vol_path)" "$Key_option" "$Key_path" ; then
     exit_error "$@"
 fi
 print_line
+
 echo "reading sample data from encrypted volume"
 if ! diff -s "$SAMPLE_TEXT_FILE" "/mnt/luksman/$Name/$(basename "$SAMPLE_TEXT_FILE")" ; then
     exit_error "$@"
 fi
 print_line
+
 rm -f "$SAMPLE_TEXT_FILE"
 if ! ./luksman unmount "$Name" ; then
     exit_error "$@"
 fi
 print_line
-if ! ./luksman delete "$Name" "$Vol_option" "$Vol_path" "$Key_option" "$Key_path" ; then
+
+if ! ./luksman delete "$Name" "$(get_vol_option)" "$(get_vol_path)" "$Key_option" "$Key_path" ; then
     exit_error "$@"
 fi
 print_line
+
 echo "$(date '+%Y%m%dT%H%M') $(basename "$0" '.sh') $* (pid=$$) SUCCESS"
 print_line
 
