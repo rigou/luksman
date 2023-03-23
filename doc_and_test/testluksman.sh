@@ -45,7 +45,7 @@ fi
 if [ -f "$LocalDir/STOP" ] ; then
     exit 0
 fi
-if ! ./testluksman_param.sh "TEST02" -f "$LocalDir" -l "$KeyLabel" ; then
+if ! ./testluksman_param.sh "TEST02" -f "$LocalDir" -k "$KeyLabel" ; then
     exit_error
 fi
 if [ -f "$LocalDir/STOP" ] ; then
@@ -64,7 +64,7 @@ fi
 if [ -f "$LocalDir/STOP" ] ; then
     exit 0
 fi
-if ! ./testluksman_param.sh "TEST12" -d "$BlockDev" -l "$KeyLabel" ; then
+if ! ./testluksman_param.sh "TEST12" -d "$BlockDev" -k "$KeyLabel" ; then
     exit_error
 fi
 if [ -f "$LocalDir/STOP" ] ; then
@@ -83,7 +83,7 @@ fi
 if [ -f "$LocalDir/STOP" ] ; then
     exit 0
 fi
-if ! ./testluksman_param.sh "TEST22" -UUID "$BlockDev" -l "$KeyLabel" ; then
+if ! ./testluksman_param.sh "TEST22" -UUID "$BlockDev" -k "$KeyLabel" ; then
     exit_error
 fi
 if [ -f "$LocalDir/STOP" ] ; then

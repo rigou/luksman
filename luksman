@@ -24,10 +24,20 @@ declare -i stderr=2
 declare -i stdebug=3
 function print_line {
 	case $1 in
-		"$stdout") echo "$2" ;;
-		"$stderr") echo "$2" 1>&2 ;;
-		"$stdebug") if [ $DEBUG_ENABLED -eq 1 ] ; then echo "DEBUG $2" 1>&2 ; fi ;;
+		"$stdout") echo -e "$2" ;;
+		"$stderr") echo -e "$2" 1>&2 ;;
+		"$stdebug") if [ $DEBUG_ENABLED -eq 1 ] ; then echo -e "DEBUG $2" 1>&2 ; fi ;;
 	esac
+}
+
+# Trim leading and trailing whitespace from given text
+function inc_Trim {
+    local text=$1
+    # remove leading whitespace characters
+    text="${text#"${text%%[![:space:]]*}"}"
+    # remove trailing whitespace characters
+    text="${text%"${text##*[![:space:]]}"}"   
+    echo -n "$text"
 }
 
 # sanitize given name for fat32 compatibility
@@ -102,67 +112,49 @@ function unmount_key {
 	return $retval
 }
 
-# Retrieve a disk device from its uuid and check that this device is valid
-# arg1=disk uuid : print the device corresponding to given uuid
-#	if this uuid is invalid or empty, print nothing
-# arg1=path of a device in /dev : print arg1
-#	if this device is invalid or empty, print nothing
+# Retrieve a disk device from its label or uuid and check that this device is valid
+# arg1=disk label : print the device corresponding to given label
+# or arg1=disk uuid : print the device corresponding to given uuid
+# or arg1=path of a device in /dev : verify device exists and print arg1
+# if given label, uuid and device are invalid or empty, print nothing
+# Return value : 0=success, 1=error
 function get_disk_device {
 	print_line $stdebug "get_disk_device()"
-	local -i retval=0 # 0=success
-	local disk_id=$1 # either /dev/sdxy or uuid
+	local -i retval=1 # 0=success, 1=error
+	local disk_id=$1 # either label or uuid or /dev/sdxy
 	if [ -n "$disk_id" ] ; then
-		if [ "${disk_id:0:1}" != '/' ] ; then
-			local dev_from_uuid=''
-			dev_from_uuid=$(readlink -fe "/dev/disk/by-uuid/$disk_id")
-			if [ -n "$dev_from_uuid" ] ; then
-				echo "$dev_from_uuid" # else empty string if uuid not found
-			else
-				retval=1 # error
-			fi
-		else
+		if [ "${disk_id:0:1}" = '/' ] ; then
 			if [ -b "$disk_id" ] ; then
-				# a valid disk device
-				echo "$disk_id" # else empty string if device not found
+				echo "$disk_id"
+				retval=0
+			fi
+		else
+			local dev_from_label=''
+			dev_from_label=$(readlink -fe "/dev/disk/by-label/$disk_id")
+			if [ -n "$dev_from_label" ] ; then
+				echo "$dev_from_label"
+				retval=0
 			else
-				retval=1 # error
+				local dev_from_uuid=''
+				dev_from_uuid=$(readlink -fe "/dev/disk/by-uuid/$disk_id")
+				if [ -n "$dev_from_uuid" ] ; then
+					echo "$dev_from_uuid"
+					retval=0
+				fi
 			fi
 		fi
-	else
-		retval=1 # error
 	fi
 	return $retval
 }
 
-# Retrieve a disk device from its label and check that this device is valid
-# arg1=label, as specified with option -l
-#	if this label is invalid or empty, print nothing
-function get_disk_device_from_label {
-	print_line $stdebug "get_disk_device_from_label()"
-	local -i retval=0 # 0=success
-	local disk_label=$1
-	local dev_from_label=''
-	if [ -n "$disk_label" ] ; then
-		dev_from_label=$(readlink -fe "/dev/disk/by-label/$disk_label")
-		if [ -n "$dev_from_label" ] ; then
-			echo "$dev_from_label" # else empty string if label not found
-		else
-			retval=1 # error
-		fi
-	else
-		retval=1 # error
-	fi
-	return $retval
-}
-
-# print the path of the container file of attached volume Name
+# print the path of the container file of attached volume name
 # or nothing if none (volume resides in a disk partition, or is not attached, or does not exist)
 function get_container_file {
 	print_line $stdebug "get_container_file()"
 	losetup --output BACK-FILE --noheadings |grep "/$1.dat"
 }
 
-# print the loop device of attached volume Name
+# print the loop device of attached volume name
 # or nothing if none (volume resides in a disk partition, or is not attached, or does not exist)
 function get_loop_device {
 	print_line $stdebug "get_loop_device()"
@@ -214,6 +206,25 @@ function get_volume_status {
 		fi
 	fi
 	echo $retval
+}
+
+function print_volume_status {
+	print_line $stdebug "print_volume_status()"
+	local -i status ; status=$(get_volume_status)
+	local open_text=''
+	case $status in
+	"$GVS_CLOSED") open_text="not mounted" ;;
+	"$GVS_MOUNTED") open_text="mounted at $LuksMountPoint" ;;
+	"$GVS_FAILED1") open_text="in failed state : loop device attached but LUKS not open" ;;
+	"$GVS_FAILED2") open_text="in failed state : LUKS open but filesystem not mounted" ;;
+	esac
+	open_text="$Name is $open_text"
+	if [ $status -eq  $GVS_FAILED1 ] || [ $status -eq  $GVS_FAILED2 ] ; then
+		print_line $stderr "$open_text"
+		print_line $stderr "try \"$(basename "$0") unmount $Name\" to fix this error"
+	else
+		print_line $stdout "$open_text"
+	fi
 }
 
 # return value: writes the device name on stdout, or 'ERROR'
@@ -294,12 +305,8 @@ function create_luks {
 		if mount_key ; then
 			keydev_mounted_bool=1
 			if [ -f "$KeyFile" ] ; then
-				local key_name=$KeyLabel
-				if [ -z "$key_name" ] ; then
-					key_name=$KeyDev
-				fi
 				print_line $stderr "can not create volume $Name because key file $(basename "$KeyFile") already exists"
-				print_line $stderr "you should delete it from $key_name if you want to create another volume with the same name" 
+				print_line $stderr "you should delete it from $KeyDisk if you want to create another volume with the same name" 
 				retval=1 # error
 			fi
 		else
@@ -307,19 +314,24 @@ function create_luks {
 		fi
 	fi
 
-	# test for existing filesystem on the device
+	# test for existing user data on the device
+	local -i data_found=0 # 1=device contains user data
 	if [ $retval -eq 0 ] && [ -n "$Device" ] ; then
 		if mount -r "$Device" "$DevMountPoint" 2>/dev/null ; then
 			print_line $stdout "$Device appears to contain an existing filesystem ($(findmnt -n -o FSTYPE "$DevMountPoint")) : it will be deleted"
 			umount "$DevMountPoint"
-			while : ; do
-				read -r -p "are you sure (YES/no) ? " yn
-				case $yn in
-					YES) retval=0 ; break ;;
-					no) retval=1 ; break ;;
-					*) print_line $stdout "please answer YES or no" ;;
-				esac
-			done
+			data_found=1
+		elif cryptsetup isLuks "$Device" ; then
+			print_line $stdout "$Device appears to contain encrypted data : it will be deleted"
+			data_found=1
+		fi
+		if [ $data_found -eq 1 ] && [ $ConfirmEnabled -eq 1 ] ; then
+			local answered=''
+			read -r -p "Are you sure? (Type 'yes' in capital letters): " answered
+			case "$answered" in
+				'YES') retval=0 ;;
+				*) retval=1 ;;
+			esac
 		fi
 	fi
 
@@ -382,9 +394,6 @@ function create_luks {
 				chown "$Owner": "$LuksMountPoint"
 				retval=$?
 				umount "$LuksMountPoint"
-				# take a short nap after umount because sometimes (under high system load) cryptsetup close would fail
-				# with "device-mapper: remove ioctl on PRO  failed: Device or resource busy"
-				# sleep 2
 			else
 				retval=1 # error
 			fi
@@ -525,7 +534,7 @@ function mount_luks {
 	if [ $key_mounted_bool -eq 1 ] ; then
 		unmount_key
 	fi
-	print_info
+	print_volume_status
 	return $retval
 }
 
@@ -540,9 +549,6 @@ function unmount_luks {
 	"$GVS_MOUNTED") # unmount step 1 : encrypted filesystem mounted
 		print_line $stdout "unmounting $Name"
 		if umount "$LuksMountPoint" ; then
-			# take a short nap after umount because sometimes cryptsetup close would fail
-			# with "device-mapper: remove ioctl on PRO  failed: Device or resource busy"
-			# sleep 2
 			unmount_luks # recursive call to case GVS_FAILED2
 			retval=$?
 		else
@@ -551,7 +557,7 @@ function unmount_luks {
 			retval=1 # error
 			print_line $stdebug "unmount_luks() failed, error $retval"
 		fi
-		print_info
+		print_volume_status
 		;;
 
 	"$GVS_FAILED2") # unmount step 2 : container file attached (if any) and LUKS open but filesystem not mounted
@@ -596,6 +602,7 @@ function delete_luks {
 			# unmount the encrypted filesystem and close the LUKS object
 			if umount "$LuksMountPoint" ; then
 				if cryptsetup close "$LuksMap" ; then
+					print_line $stdout "deleting $Name"
 					# locate the LUKS container
 					local luks_dev=''
 					if [ -n "$ContainerFile" ] ; then
@@ -603,21 +610,32 @@ function delete_luks {
 					else
 						luks_dev=$Device
 					fi
-					# erase the LUKS header of the container and beyond
-					# as advised by "5.4 How do I securely erase a LUKS container?"
-					# https://gitlab.com/cryptsetup/cryptsetup/-/blob/main/FAQ.md
-					print_line $stdout "erasing $luks_dev"
-					# ignore head error because if container size < 100M
-					# head warns "head: error writing 'standard output': No space left on device" 
-					head -c 100M /dev/urandom > "$luks_dev" 2>/dev/null
-					if is_attached_container_file "$Name" ; then
-						if detach_container_file ; then 
-							print_line $stdout "deleting $ContainerFile"
-							if ! rm "$ContainerFile" ; then
-								retval=6 # error
+					# erase all keyslots and make the LUKS container permanently inaccessible
+					if [ $ConfirmEnabled -eq 1 ] ; then
+						# prompt user to type YES
+						if ! cryptsetup erase "$luks_dev" ; then
+							retval=7 # user did not type YES
+						fi
+					else
+						cryptsetup -q erase "$luks_dev"
+					fi
+					if [ $retval -eq 0 ] ; then
+						# at this point all keyslots have been deleted but "cryptseup isLuks" still
+						# returns true, so we overwrite the LUKS header of the container and beyond
+						# to remove any remaining LUKS signatures, as advised by LUKS FAQ at
+						# "5.4 How do I securely erase a LUKS container?"
+						# https://gitlab.com/cryptsetup/cryptsetup/-/blob/main/FAQ.md
+						dd if=/dev/urandom of="$luks_dev" bs=1M count=100 2>/dev/null
+
+						if is_attached_container_file "$Name" ; then
+							if detach_container_file ; then 
+								print_line $stdout "deleting $ContainerFile"
+								if ! rm "$ContainerFile" ; then
+									retval=6 # error
+								fi
+							else
+								retval=5 # error
 							fi
-						else
-							retval=5 # error
 						fi
 					fi
 				else
@@ -650,29 +668,10 @@ function delete_luks {
 	if  [ $retval -eq 0 ] ; then
 		print_line $stdout "$Name is deleted"
 	else
-		print_info
-		print_line $stdout "did not delete $Name, error $retval"
+		print_volume_status
+		print_line $stderr "did not delete $Name"
 	fi
 	return $retval
-}
-
-function print_info {
-	print_line $stdebug "print_info()"
-	local -i status ; status=$(get_volume_status)
-	local open_text=''
-	case $status in
-	"$GVS_CLOSED") open_text="not mounted" ;;
-	"$GVS_MOUNTED") open_text="mounted at $LuksMountPoint" ;;
-	"$GVS_FAILED1") open_text="in failed state : loop device attached but LUKS not open" ;;
-	"$GVS_FAILED2") open_text="in failed state : LUKS open but filesystem not mounted" ;;
-	esac
-	open_text="$Name is $open_text"
-	if [ $status -eq  $GVS_FAILED1 ] || [ $status -eq  $GVS_FAILED2 ] ; then
-		print_line $stderr "$open_text"
-		print_line $stderr "try \"$(basename "$0") unmount $Name\" to fix this error"
-	else
-		print_line $stdout "$open_text"
-	fi
 }
 
 function print_list {
@@ -680,9 +679,17 @@ function print_list {
 	local path=''
 	find /dev/mapper -type l -print0 |while IFS= read -r -d '' path
 	do
-		local mountpoint ; mountpoint="/mnt/$APPNAME/$(basename "$path")"
+		local vol_name='' ; vol_name=$(basename "$path")
+		local mountpoint ; mountpoint="/mnt/$APPNAME/$vol_name"
+		local vol_dev=''
 		if [ -d "$mountpoint" ] ; then
-			print_line $stdout "$mountpoint"
+			if is_attached_container_file "$vol_name" ; then
+				vol_dev=$(get_container_file "$vol_name")
+			else
+				vol_dev=$(cryptsetup -v status "$path" |grep "device:" |cut -d ":" -f 2)
+				vol_dev="$(inc_Trim "$vol_dev")"
+			fi
+			print_line $stdout "$vol_name\t$vol_dev\t$mountpoint"
 		fi
 	done
 }
@@ -729,7 +736,6 @@ function exec_action {
 		delete_luks
 		retval=$?
 		;;
-	"$ACT_INFO") print_info ; retval=0 ;;
 	"$ACT_LIST") print_list ; retval=0 ;;
 	esac
 	return $retval
@@ -739,17 +745,15 @@ function usage {
 	print_line $stdout "$APPNAME v$VERSION usage"
 	local n0="    $APPNAME"
 	print_line $stdout "create volume in a container file or a device"
-	print_line $stdout "$n0 $ACT_CREATE name (-f folder -s size_MB | -d device) [(-k keyfile_device | -l keyfile_disk_label)] -o owner_name "
+	print_line $stdout "$n0 $ACT_CREATE name (-f folder -s size_MB | -d device) [-k keyfile_disk] [-y] -o owner_name "
 	print_line $stdout "add or replace a key file"
-	print_line $stdout "$n0 $ACT_NEWKEY name (-f folder | -d device) (-k keyfile_device | -l keyfile_disk_label)"
+	print_line $stdout "$n0 $ACT_NEWKEY name (-f folder | -d device) -k keyfile_disk"
 	print_line $stdout "mount volume"
-	print_line $stdout "$n0 $ACT_MOUNT name (-f folder | -d device) [(-k keyfile_device | -l keyfile_disk_label)]"
+	print_line $stdout "$n0 $ACT_MOUNT name (-f folder | -d device) [-k keyfile_disk]"
 	print_line $stdout "unmount volume(s)"
 	print_line $stdout "$n0 $ACT_UNMOUNT (name | all)"
 	print_line $stdout "delete volume"
-	print_line $stdout "$n0 $ACT_DELETE name (-f folder | -d device) [(-k keyfile_device | -l keyfile_disk_label)]"
-	print_line $stdout "print volume information"
-	print_line $stdout "$n0 $ACT_INFO name"
+	print_line $stdout "$n0 $ACT_DELETE name (-f folder | -d device) [-k keyfile_disk] [-y]"
 	print_line $stdout "list mounted volumes"
 	print_line $stdout "$n0 $ACT_LIST"
 }
@@ -766,28 +770,22 @@ function check_args {
 		if [ "$filtered_name" = "$Name" ] ; then
 			# check required arguments
 			case "$Action" in
-			"$ACT_CREATE") if [ -n "$Folder" ] && [ -z "$Device" ] && [ $Size -ge $VOLUME_MIN_SIZE ] && [ -n "$Owner" ] ; then retval=0 ; fi
+			"$ACT_CREATE")
+				if [ -n "$Folder" ] && [ -z "$Device" ] && [ $Size -ge $VOLUME_MIN_SIZE ] && [ -n "$Owner" ] ; then retval=0 ; fi
 				if [ -n "$Device" ] && [ -z "$Folder" ] && [ -n "$Owner" ] ; then retval=0 ; fi
 				;;
-			"$ACT_NEWKEY") if [ -n "$Folder" ] && [ -z "$Device" ] && [ -n "$KeyDev" ] &&  [ -z "$KeyLabel" ] ; then retval=0 ; fi
-				if [ -n "$Folder" ] && [ -z "$Device" ] && [ -z "$KeyDev" ] &&  [ -n "$KeyLabel" ] ; then retval=0 ; fi
-				if [ -n "$Device" ] && [ -z "$Folder" ] && [ -n "$KeyDev" ] &&  [ -z "$KeyLabel" ] ; then retval=0 ; fi
-				if [ -n "$Device" ] && [ -z "$Folder" ] && [ -z "$KeyDev" ] &&  [ -n "$KeyLabel" ] ; then retval=0 ; fi
+			"$ACT_NEWKEY")
+				if [ -n "$Folder" ] && [ -z "$Device" ] ; then retval=0 ; fi
+				if [ -z "$Folder" ] && [ -n "$Device" ] ; then retval=0 ; fi
 				;;
-			"$ACT_MOUNT" | "$ACT_DELETE") if [ -n "$Folder" ] && [ -z "$Device" ] ; then retval=0 ; fi
+			"$ACT_MOUNT" | "$ACT_DELETE")
+				if [ -n "$Folder" ] && [ -z "$Device" ] ; then retval=0 ; fi
 				if [ -n "$Device" ] && [ -z "$Folder" ] ; then retval=0 ; fi
 				;;
-			"$ACT_UNMOUNT" | "$ACT_INFO") retval=0 ;;
+			"$ACT_UNMOUNT" | "$ACT_LIST")
+				if [ -z "$Folder" ] && [ -z "$Device" ] && [ -z "$KeyDev" ] && [ $Size -eq 0 ] && [ -z "$Owner" ] ; then retval=0 ; fi
+				;;
 			esac
-			if [ $retval -eq 0 ] ; then
-				# check optional arguments -k -l
-				if [ -n "$KeyDev" ] && [ -n "$KeyLabel" ] ; then retval=1 ; fi
-				if [ -n "$KeyDev" ] || [ -n "$KeyLabel" ] ; then
-					if [ "$Action" = "$ACT_UNMOUNT" ] || [ "$Action" = "$ACT_INFO" ] ; then
-						retval=1
-					fi
-				fi
-			fi
 			if [ $retval -ne 0 ] ; then 
 				print_line $stderr "missing/extra/invalid arg"
 			fi
@@ -799,15 +797,8 @@ function check_args {
 	if [ $retval -eq 0 ] ; then 
 		if [ -n "$Folder" ] && ! [ -d "$Folder" ] ; then print_line $stderr "folder $Folder not found" ; retval=2 ; fi
 		if [ -n "$Device" ] && ! [ -b "$Device" ] ; then print_line $stderr "device $Device not found" ; retval=2 ; fi
-		if [ -n "$KeyDev" ] && ! [ -b "$KeyDev" ] ; then print_line $stderr "device $KeyDev not found" ; retval=2 ; fi
+		if [ -n "$KeyDev" ] && ! [ -b "$KeyDev" ] ; then print_line $stderr "device $KeyDisk not found" ; retval=2 ; fi
 		if [ -n "$Owner" ] && ! id "$Owner" 1>/dev/null 2>&1 ; then print_line $stderr "user $Owner not found" ; retval=2 ; fi
-		if [ -n "$KeyLabel" ] ; then
-			# get_disk_device_from_label() returns empty string if label not found
-			if [ -z "$(get_disk_device_from_label "$KeyLabel")" ] ; then
-				print_line $stderr "device not found with label $KeyLabel"
-				retval=2
-			fi
-		fi
 	fi
 	return $retval
 }
@@ -827,7 +818,6 @@ readonly ACT_NEWKEY='newkey'
 readonly ACT_MOUNT='mount'
 readonly ACT_UNMOUNT='unmount'
 readonly ACT_DELETE='delete'
-readonly ACT_INFO='info'
 readonly ACT_LIST='list'
 if [ $# -eq 0 ] ; then
 	usage
@@ -847,18 +837,19 @@ declare Folder=''
 declare -i Size=0
 declare Device=''
 declare Owner=''
-declare KeyDev=''
-declare KeyLabel=''
+declare KeyDisk=''
+declare -i ConfirmEnabled=1 # by default, ask user to type YES to confirm some actions
+
 if [ $# -ne 0 ] ; then
-	while getopts f:s:d:o:k:l: option
+	while getopts f:s:d:o:k:l:y option
 	do
 		case $option in
 		f) Folder=$OPTARG ;;
 		s) Size=$OPTARG ;;
 		d) Device=$OPTARG ;;
 		o) Owner=$OPTARG ;;
-		k) KeyDev=$OPTARG ;;
-		l) KeyLabel=$OPTARG ;;
+		k) KeyDisk=$OPTARG ;;
+		y) ConfirmEnabled=0 ;; # 0=do not ask user to type YES to confirm some actions
 		*) usage ; exit 1;;
 		esac
 	done
@@ -867,6 +858,7 @@ fi
 
 # Initializations
 declare -i Exitval=0
+declare KeyDev=''
 
 # change to user's home dir in order to prevent errors like
 # "find: Failed to restore initial working directory: /mnt/sshfs/enigma:59607/home/rigou/bin/backup: Permission denied"
@@ -890,18 +882,15 @@ if [ -n "$Device" ] ; then
 		Device=$(get_disk_device "$Device")
 	fi
 fi
-if [ -n "$KeyDev" ] ; then
-	if get_disk_device "$KeyDev" >/dev/null ; then
-		KeyDev=$(get_disk_device "$KeyDev")
+# convert labels or UUIDs to device paths /dev/sdxy
+if [ -n "$KeyDisk" ] ; then
+	if get_disk_device "$KeyDisk" >/dev/null ; then
+		KeyDev=$(get_disk_device "$KeyDisk")
 	fi
 fi
 
 if check_args ; then
 	if [ -n "$Name" ] ; then
-		if [ -n "$KeyLabel" ] ; then
-			# if a label is specified by option -l then retrieve the device path
-			KeyDev=$(get_disk_device_from_label "$KeyLabel")
-		fi
 		if [ -n "$KeyDev" ] ; then 
 			KeyFile="$KeyMountPoint/$APPNAME/$Name.key"
 			mkdir -p "$KeyMountPoint"

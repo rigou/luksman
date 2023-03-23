@@ -1,7 +1,7 @@
 #!/bin/bash
 
 if [ $# -ne 5 ] ; then
-	echo "usage: $(basename "$0") volume_name vol_option(-d -f) vol_path key_option(-k -l) key_path"
+	echo "usage: $(basename "$0") volume_name vol_option(-d -f) vol_path key_option(-k) key_path"
 	exit 1
 fi
 
@@ -54,7 +54,7 @@ function get_vol_path {
 readonly Name=$1-$$
 readonly Vol_option=$2 # (-d -f -UUID)
 readonly Vol_path=$3
-readonly Key_option=$4 # (-k -l)
+readonly Key_option=$4 # (-k)
 readonly Key_path=$5
 readonly User="${SUDO_USER:-$USER}"
 
