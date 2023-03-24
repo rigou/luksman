@@ -745,7 +745,7 @@ function usage {
 	print_line $stdout "$APPNAME v$VERSION usage"
 	local n0="    $APPNAME"
 	print_line $stdout "create volume in a container file or a device"
-	print_line $stdout "$n0 $ACT_CREATE name (-f folder -s size_MB | -d device) [-k keyfile_disk] [-y] -o owner_name "
+	print_line $stdout "$n0 $ACT_CREATE name (-f folder -s size_MB | -d device) [-k keyfile_disk] [-y]"
 	print_line $stdout "add or replace a key file"
 	print_line $stdout "$n0 $ACT_NEWKEY name (-f folder | -d device) -k keyfile_disk"
 	print_line $stdout "mount volume"
