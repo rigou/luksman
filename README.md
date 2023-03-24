@@ -60,7 +60,7 @@ sudo luksman action [volume_name [options]]
 ```console
 sudo luksman create name (-d device | -f folder -s size_MB) [-k keyfile] [-y]
 ```
-* WARNING: when using option -d, the data currently stored at this location will be lost ; use ``lsblk`` to double-check the device name
+* WARNING: when using option -d, the data currently stored at this location will be lost ; use ``lsblk`` to double-check because device names in /dev may change according to what you have plugged in at the time
 * when using option -f, the container file will be created in the specified folder with the given name and the ".dat" extension
 * when using option -k the key file will be created in the "/luksman" folder of the specified device with the given name and the ".key" extension
 
