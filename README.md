@@ -11,13 +11,13 @@ Main Repository : https://github.com/rigou/luksman
 * you can use a container file or a disk to store an encrypted volume
 * you can enter a passphrase interactively when creating / opening an encrypted volume, or use a key file
 * key files may conveniently reside in a removable flash drive, allowing you to take them with you when you leave your computer unattended
-* you can revoke a key file and generate a new one if you think it has been compromised
+* you can revoke a key file and generate a new one if you suspect it has been compromised
 * you can delete an encrypted volume and its key file
 
 These features cover 99% of the author's needs. If your requirements are more complex, you can still use [cryptsetup](https://wiki.archlinux.org/title/dm-crypt/Device_encryption) on the encrypted volumes created by ``luksman`` and do whatever you want.
 
 ## Installation
-Install the required package ``cryptsetup-bin``
+Install the required package ``cryptsetup-bin`` for LUKS and dm-crypt support
 ```console
 sudo apt update
 sudo apt install cryptsetup-bin
@@ -54,10 +54,11 @@ sudo luksman action [volume_name [options]]
 * **-f** path of the folder where the container file is (or will be) located. An absolute path is recommended ; a relative path will be interpreted as relative to your home directory. Options -d and -f are mutually exclusive
 * **-s** size of the container file which will be created, in MB (1024x1024). Applies only to volumes created with option -f . The minimum size is 17 MB
 * **-k** location (device path in /dev, UUID or label) of the disk (or flash drive, or SD card) where the key file is (or will be) located
+* **-y** do not ask user to type YES to confirm actions which may result in existing data loss
 
 ### 1. Create an encrypted volume
 ```console
-sudo luksman create name (-d device | -f folder -s size_MB) [-k keyfile]
+sudo luksman create name (-d device | -f folder -s size_MB) [-k keyfile] [-y]
 ```
 * WARNING: when using option -d, the data currently stored at this location will be lost ; use ``lsblk`` to double-check the device name
 * when using option -f, the container file will be created in the specified folder with the given name and the ".dat" extension
@@ -179,7 +180,7 @@ luksman unmount all
 
 ### 5. Delete an encrypted volume
 ```console
-luksman delete name (-d device | -f folder) [-k keyfile]
+luksman delete name (-d device | -f folder) [-k keyfile] [-y]
 ```
 * WARNING: This operation is irreversible
 * if no key file is specified by option -k, user will be prompted for a passphrase
