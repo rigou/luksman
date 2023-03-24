@@ -91,8 +91,8 @@ function create_temp_keyfile {
 function mount_key {
 	print_line $stdebug "mount_key()"
 	local -i retval=0 # 0=success, 1=error
-	if ! mountpoint -q "$KeyMountPoint" ; then
-		mount "$KeyDev" "$KeyMountPoint"
+	if ! mountpoint -q "$KeyDevMountPoint" ; then
+		mount "$KeyDev" "$KeyDevMountPoint"
 		retval=$?
 	fi
 	return $retval
@@ -101,12 +101,12 @@ function mount_key {
 function unmount_key {
 	print_line $stdebug "unmount_key()"
 	local -i retval=0 # 0=success, 1=error
-	if mountpoint -q "$KeyMountPoint" ; then
+	if mountpoint -q "$KeyDevMountPoint" ; then
 		rm -f "$(get_temp_keyfile)" # just in case
-		umount "$KeyMountPoint"
+		umount "$KeyDevMountPoint"
 		retval=$?
 	else
-		print_line $stderr "key not found at $KeyMountPoint"
+		print_line $stderr "key not found at $KeyDevMountPoint"
 		retval=0 # ignore this error
 	fi
 	return $retval
@@ -316,13 +316,13 @@ function create_luks {
 
 	# test for existing user data on the device
 	local -i data_found=0 # 1=device contains user data
-	if [ $retval -eq 0 ] && [ -n "$Device" ] ; then
-		if mount -r "$Device" "$DevMountPoint" 2>/dev/null ; then
-			print_line $stdout "$Device appears to contain an existing filesystem ($(findmnt -n -o FSTYPE "$DevMountPoint")) : it will be deleted"
-			umount "$DevMountPoint"
+	if [ $retval -eq 0 ] && [ -n "$BlockDev" ] ; then
+		if mount -r "$BlockDev" "$BlockDevMountPoint" 2>/dev/null ; then
+			print_line $stdout "$BlockDev appears to contain an existing filesystem ($(findmnt -n -o FSTYPE "$BlockDevMountPoint")) : it will be deleted"
+			umount "$BlockDevMountPoint"
 			data_found=1
-		elif cryptsetup isLuks "$Device" ; then
-			print_line $stdout "$Device appears to contain encrypted data : it will be deleted"
+		elif cryptsetup isLuks "$BlockDev" ; then
+			print_line $stdout "$BlockDev appears to contain encrypted data : it will be deleted"
 			data_found=1
 		fi
 		if [ $data_found -eq 1 ] && [ $ConfirmEnabled -eq 1 ] ; then
@@ -337,9 +337,9 @@ function create_luks {
 
 	if [ $retval -eq 0 ] ; then
 		if [ -n "$ContainerFile" ] ; then
-			print_line $stdout "assigning $ContainerFile to $Owner"
+			print_line $stdout "assigning $ContainerFile to $USERNAME"
 			touch "$ContainerFile"
-			chown "$Owner": "$ContainerFile" 2>/dev/null # silently fails with Fat/exFat filesystems
+			chown "$USERNAME": "$ContainerFile" 2>/dev/null # silently fails with Fat/exFat filesystems
 			print_line $stdout "filling $ContainerFile with $Size MB random data"
 			if head -c ${Size}M /dev/urandom > "$ContainerFile" ; then
 				luks_dev=$(attach_container_file)
@@ -353,7 +353,7 @@ function create_luks {
 			fi
 			sync
 		else
-			luks_dev=$Device
+			luks_dev=$BlockDev
 		fi
 	fi
 
@@ -389,9 +389,9 @@ function create_luks {
 
 	if [ $retval -eq 0 ] ; then
 		if mkfs -t ext4 -L "$Name" "$LuksMap" ; then
-			print_line $stdout "assigning $Name to $Owner"
+			print_line $stdout "assigning $Name to $USERNAME"
 			if mount "$LuksMap" "$LuksMountPoint" ; then
-				chown "$Owner": "$LuksMountPoint"
+				chown "$USERNAME": "$LuksMountPoint"
 				retval=$?
 				umount "$LuksMountPoint"
 			else
@@ -437,7 +437,7 @@ function newkey_luks {
 				retval=1 # error
 			fi
 		else
-			luks_dev=$Device
+			luks_dev=$BlockDev
 		fi
 		if [ $retval -eq 0 ] ; then
 			if ! create_temp_keyfile ; then
@@ -511,7 +511,7 @@ function mount_luks {
 						retval=1
 					fi
 				else
-					luks_dev=$Device
+					luks_dev=$BlockDev
 				fi
 			fi
 			if  [ $retval -eq 0 ] ; then
@@ -608,7 +608,7 @@ function delete_luks {
 					if [ -n "$ContainerFile" ] ; then
 						luks_dev=$(get_loop_device "$Name")
 					else
-						luks_dev=$Device
+						luks_dev=$BlockDev
 					fi
 					# erase all keyslots and make the LUKS container permanently inaccessible
 					if [ $ConfirmEnabled -eq 1 ] ; then
@@ -771,19 +771,19 @@ function check_args {
 			# check required arguments
 			case "$Action" in
 			"$ACT_CREATE")
-				if [ -n "$Folder" ] && [ -z "$Device" ] && [ $Size -ge $VOLUME_MIN_SIZE ] && [ -n "$Owner" ] ; then retval=0 ; fi
-				if [ -n "$Device" ] && [ -z "$Folder" ] && [ -n "$Owner" ] ; then retval=0 ; fi
+				if [ -n "$Folder" ] && [ -z "$BlockDev" ] && [ $Size -ge $VOLUME_MIN_SIZE ] ; then retval=0 ; fi
+				if [ -n "$BlockDev" ] && [ -z "$Folder" ] ; then retval=0 ; fi
 				;;
 			"$ACT_NEWKEY")
-				if [ -n "$Folder" ] && [ -z "$Device" ] ; then retval=0 ; fi
-				if [ -z "$Folder" ] && [ -n "$Device" ] ; then retval=0 ; fi
+				if [ -n "$Folder" ] && [ -z "$BlockDev" ] ; then retval=0 ; fi
+				if [ -z "$Folder" ] && [ -n "$BlockDev" ] ; then retval=0 ; fi
 				;;
 			"$ACT_MOUNT" | "$ACT_DELETE")
-				if [ -n "$Folder" ] && [ -z "$Device" ] ; then retval=0 ; fi
-				if [ -n "$Device" ] && [ -z "$Folder" ] ; then retval=0 ; fi
+				if [ -n "$Folder" ] && [ -z "$BlockDev" ] ; then retval=0 ; fi
+				if [ -n "$BlockDev" ] && [ -z "$Folder" ] ; then retval=0 ; fi
 				;;
 			"$ACT_UNMOUNT" | "$ACT_LIST")
-				if [ -z "$Folder" ] && [ -z "$Device" ] && [ -z "$KeyDev" ] && [ $Size -eq 0 ] && [ -z "$Owner" ] ; then retval=0 ; fi
+				if [ -z "$Folder" ] && [ -z "$BlockDev" ] && [ -z "$KeyDev" ] && [ $Size -eq 0 ] ; then retval=0 ; fi
 				;;
 			esac
 			if [ $retval -ne 0 ] ; then 
@@ -796,9 +796,8 @@ function check_args {
 	fi
 	if [ $retval -eq 0 ] ; then 
 		if [ -n "$Folder" ] && ! [ -d "$Folder" ] ; then print_line $stderr "folder $Folder not found" ; retval=2 ; fi
-		if [ -n "$Device" ] && ! [ -b "$Device" ] ; then print_line $stderr "device $Device not found" ; retval=2 ; fi
+		if [ -n "$BlockDev" ] && ! [ -b "$BlockDev" ] ; then print_line $stderr "device $BlockDisk not found" ; retval=2 ; fi
 		if [ -n "$KeyDev" ] && ! [ -b "$KeyDev" ] ; then print_line $stderr "device $KeyDisk not found" ; retval=2 ; fi
-		if [ -n "$Owner" ] && ! id "$Owner" 1>/dev/null 2>&1 ; then print_line $stderr "user $Owner not found" ; retval=2 ; fi
 	fi
 	return $retval
 }
@@ -809,6 +808,7 @@ if [ "$(id -u)" != '0' ] ; then
 	print_line $stderr "$APPNAME must run as root, run it with sudo $APPNAME"
 	exit 1
 fi
+readonly USERNAME=${SUDO_USER:-$USER} # get the underlying user logname (the one running sudo)
 
 print_line $stdebug "$(date '+%Y%m%dT%H%M') $(basename "$0" '.sh') $* (pid=$$)"
 
@@ -835,19 +835,17 @@ shift 2
 # parse optional args
 declare Folder=''
 declare -i Size=0
-declare Device=''
-declare Owner=''
+declare BlockDisk=''
 declare KeyDisk=''
 declare -i ConfirmEnabled=1 # by default, ask user to type YES to confirm some actions
 
 if [ $# -ne 0 ] ; then
-	while getopts f:s:d:o:k:l:y option
+	while getopts f:s:d:k:y option
 	do
 		case $option in
 		f) Folder=$OPTARG ;;
 		s) Size=$OPTARG ;;
-		d) Device=$OPTARG ;;
-		o) Owner=$OPTARG ;;
+		d) BlockDisk=$OPTARG ;;
 		k) KeyDisk=$OPTARG ;;
 		y) ConfirmEnabled=0 ;; # 0=do not ask user to type YES to confirm some actions
 		*) usage ; exit 1;;
@@ -858,7 +856,8 @@ fi
 
 # Initializations
 declare -i Exitval=0
-declare KeyDev=''
+declare BlockDev='' # /dev/sdxy path of the device corresponding to arg -d
+declare KeyDev='' # /dev/sdxy path of the device corresponding to arg -k
 
 # change to user's home dir in order to prevent errors like
 # "find: Failed to restore initial working directory: /mnt/sshfs/enigma:59607/home/rigou/bin/backup: Permission denied"
@@ -868,8 +867,8 @@ if ! cd "/home/${SUDO_USER:-$USER}" ; then
 fi
 
 if [ -n "$Name" ] ; then # ACT_LIST takes no args, hence Name is empty
-	readonly DevMountPoint="/tmp/$APPNAME-$$.dev"
-	readonly KeyMountPoint="/tmp/$APPNAME-$$.key"
+	readonly BlockDevMountPoint="/tmp/$APPNAME-$$.dev"
+	readonly KeyDevMountPoint="/tmp/$APPNAME-$$.key"
 	readonly LuksMountPoint="/mnt/$APPNAME/$Name"
 	readonly LuksMap="/dev/mapper/$Name"
 	declare ContainerFile=''
@@ -877,9 +876,9 @@ if [ -n "$Name" ] ; then # ACT_LIST takes no args, hence Name is empty
 fi
 
 # convert UUIDs (if any) to device paths /dev/sdxy
-if [ -n "$Device" ] ; then
-	if get_disk_device "$Device" >/dev/null ; then
-		Device=$(get_disk_device "$Device")
+if [ -n "$BlockDisk" ] ; then
+	if get_disk_device "$BlockDisk" >/dev/null ; then
+		BlockDev=$(get_disk_device "$BlockDisk")
 	fi
 fi
 # convert labels or UUIDs to device paths /dev/sdxy
@@ -892,11 +891,11 @@ fi
 if check_args ; then
 	if [ -n "$Name" ] ; then
 		if [ -n "$KeyDev" ] ; then 
-			KeyFile="$KeyMountPoint/$APPNAME/$Name.key"
-			mkdir -p "$KeyMountPoint"
+			KeyFile="$KeyDevMountPoint/$APPNAME/$Name.key"
+			mkdir -p "$KeyDevMountPoint"
 		fi
-		if [ -n "$Device" ] ; then 
-			mkdir -p "$DevMountPoint"
+		if [ -n "$BlockDev" ] ; then 
+			mkdir -p "$BlockDevMountPoint"
 		fi
 		if [ -n "$Folder" ] ; then
 			ContainerFile="$Folder/$Name.dat"
@@ -910,11 +909,11 @@ if check_args ; then
 	
 	# final cleanup
 	if [ -n "$Name" ] ; then
-		if [ -n "$Device" ] ; then 
-			rmdir "$DevMountPoint"
+		if [ -n "$BlockDev" ] ; then 
+			rmdir "$BlockDevMountPoint"
 		fi
 		if [ -n "$KeyDev" ] ; then
-			rmdir "$KeyMountPoint"
+			rmdir "$KeyDevMountPoint"
 		fi
 		if [ "$(get_volume_status)" != $GVS_MOUNTED ] ; then
 			rmdir "$LuksMountPoint" 

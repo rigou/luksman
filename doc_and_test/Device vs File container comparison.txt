@@ -1,7 +1,7 @@
 Device vs File container comparison
 2023-03-17
 
-$ time lum create TEST01 -d /dev/sdc1 -K LUKSMANKEY -o rigou 
+$ time lum create TEST01 -d /dev/sdc1 -k LUKSMANKEY  
 generating new key file
 formatting TEST01
 mke2fs 1.46.2 (28-Feb-2021)
@@ -13,7 +13,7 @@ real	0m54.450s
 user	0m22.156s
 sys	0m2.471s
 
-$ lum mount TEST01 -d /dev/sdc1 -K LUKSMANKEY
+$ lum mount TEST01 -d /dev/sdc1 -k LUKSMANKEY
 opening TEST01
 mounting TEST01
 TEST01 is mounted at /mnt/luksman/TEST01
@@ -39,7 +39,7 @@ exFAT format complete!
 
 $ sudo mount /dev/sdc1 /media/usb
 
-$ time lum create TEST01 -f /media/usb -s 12000 -K LUKSMANKEY -o rigou 
+$ time lum create TEST01 -f /media/usb -s 12000 -k LUKSMANKEY  
 overwriting /media/usb/TEST01.dat with 12000 MiB random data
 12000+0 records in
 12000+0 records out
@@ -58,7 +58,7 @@ real	24m42.928s
 user	0m24.280s
 sys	3m40.840s
 
-$ lum mount TEST01 -f /media/usb/ -K LUKSMANKEY
+$ lum mount TEST01 -f /media/usb/ -k LUKSMANKEY
 attaching /media/usb//TEST01.dat
 opening TEST01
 mounting TEST01

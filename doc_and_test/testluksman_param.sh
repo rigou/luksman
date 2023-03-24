@@ -68,11 +68,11 @@ ls -l "$SAMPLE_TEXT_FILE"
 print_line
 
 if [ "$Vol_option" = '-f' ] ; then
-	if ! ./luksman create "$Name" "$Vol_option" "$Vol_path" "$Key_option" "$Key_path" -o "$User" -s 32 -y ; then
+	if ! ./luksman create "$Name" "$Vol_option" "$Vol_path" "$Key_option" "$Key_path" -s 32 -y ; then
         exit_error "$@"
     fi
 else
-	if ! ./luksman create "$Name" "$(get_vol_option)" "$(get_vol_path)" "$Key_option" "$Key_path" -o "$User" -y ; then
+	if ! ./luksman create "$Name" "$(get_vol_option)" "$(get_vol_path)" "$Key_option" "$Key_path" -y ; then
         exit_error "$@"
     fi
 fi
