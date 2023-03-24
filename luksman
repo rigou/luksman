@@ -76,7 +76,7 @@ function validate_temp_keyfile {
 # Lucks will use our key to unlock the master-key of the encrypted device
 # (passphrases can be up to 512 characters and keyfiles up to 8192 KiB)
 function create_temp_keyfile {
-	print_line $stdebug "create_temp_keyfile()"
+	#print_line $stdebug "create_temp_keyfile()"
 	local -i retval=0 # success
 	local temp_keyfile ; temp_keyfile=$(get_temp_keyfile)
 	print_line $stdout "generating new key file"
@@ -89,7 +89,7 @@ function create_temp_keyfile {
 }
 
 function mount_key {
-	print_line $stdebug "mount_key()"
+	#print_line $stdebug "mount_key()"
 	local -i retval=0 # 0=success, 1=error
 	if ! mountpoint -q "$KeyDevMountPoint" ; then
 		mount "$KeyDev" "$KeyDevMountPoint"
@@ -99,7 +99,7 @@ function mount_key {
 }
 
 function unmount_key {
-	print_line $stdebug "unmount_key()"
+	#print_line $stdebug "unmount_key()"
 	local -i retval=0 # 0=success, 1=error
 	if mountpoint -q "$KeyDevMountPoint" ; then
 		rm -f "$(get_temp_keyfile)" # just in case
@@ -119,7 +119,7 @@ function unmount_key {
 # if given label, uuid and device are invalid or empty, print nothing
 # Return value : 0=success, 1=error
 function get_disk_device {
-	print_line $stdebug "get_disk_device()"
+	#print_line $stdebug "get_disk_device()"
 	local -i retval=1 # 0=success, 1=error
 	local disk_id=$1 # either label or uuid or /dev/sdxy
 	if [ -n "$disk_id" ] ; then
@@ -150,14 +150,14 @@ function get_disk_device {
 # print the path of the container file of attached volume name
 # or nothing if none (volume resides in a disk partition, or is not attached, or does not exist)
 function get_container_file {
-	print_line $stdebug "get_container_file()"
+	#print_line $stdebug "get_container_file()"
 	losetup --output BACK-FILE --noheadings |grep "/$1.dat"
 }
 
 # print the loop device of attached volume name
 # or nothing if none (volume resides in a disk partition, or is not attached, or does not exist)
 function get_loop_device {
-	print_line $stdebug "get_loop_device()"
+	#print_line $stdebug "get_loop_device()"
 	local container_file=''
 	container_file=$(get_container_file "$1")
 	if [ -n "$container_file" ] ; then
@@ -168,7 +168,7 @@ function get_loop_device {
 # Tell if given volume name corresponds to an attached loop device
 # Return value: 0=attached, 1=not attached or not a loop device
 function is_attached_container_file {
-	print_line $stdebug "is_attached_container_file()"
+	#print_line $stdebug "is_attached_container_file()"
 	local -i retval=0
 	if [ -z "$(get_loop_device "$1")" ] ; then
 		retval=1
@@ -182,7 +182,7 @@ declare -ir GVS_MOUNTED=1	# encrypted filesystem mounted, ready for use
 declare -ir GVS_FAILED1=2	# container file attached (if any), no LUKS open
 declare -ir GVS_FAILED2=3	# container file attached (if any) and LUKS open but filesystem not mounted
 function get_volume_status {
-	print_line $stdebug "get_volume_status()"
+	#print_line $stdebug "get_volume_status()"
 	local -i retval=$GVS_CLOSED
 	local -i attached_bool=0 # 0=false, 1=true
 	local -i luksopen_bool=0
@@ -209,7 +209,7 @@ function get_volume_status {
 }
 
 function print_volume_status {
-	print_line $stdebug "print_volume_status()"
+	#print_line $stdebug "print_volume_status()"
 	local -i status ; status=$(get_volume_status)
 	local open_text=''
 	case $status in
@@ -229,10 +229,10 @@ function print_volume_status {
 
 # return value: writes the device name on stdout, or 'ERROR'
 function attach_container_file {
-	print_line $stdebug "attach_container_file()"
+	#print_line $stdebug "attach_container_file()"
 	if [ -f "$ContainerFile" ] ; then
 		if ! is_attached_container_file "$Name" ; then
-			print_line $stdebug "attaching $ContainerFile"
+			#print_line $stdebug "attaching $ContainerFile"
 			# The loop device setup is not an atomic operation when used with --find, 
 			# and losetup does not protect this operation by any lock.
 			# It is recommended to use flock(1) to avoid a collision in heavily parallel use cases
@@ -266,10 +266,10 @@ function attach_container_file {
 }
 
 function detach_container_file {
-	print_line $stdebug "detach_container_file()"
+	#print_line $stdebug "detach_container_file()"
 	retval=0 # success
 	if is_attached_container_file "$Name" ; then
-		print_line $stdebug "detaching $(get_container_file "$Name")"
+		#print_line $stdebug "detaching $(get_container_file "$Name")"
 		local luks_dev=''
 		luks_dev=$(get_loop_device "$Name")
 		if [ -n "$luks_dev" ] ; then
@@ -286,7 +286,7 @@ function detach_container_file {
 }
 
 function create_luks {
-	print_line $stdebug "create_luks()"
+	#print_line $stdebug "create_luks()"
 	local -i retval=0 # success
 	local luks_dev=''
 	local -i attached_bool=0 # 0=false, 1=true
@@ -424,7 +424,7 @@ function create_luks {
 }
 
 function newkey_luks {
-	print_line $stdebug "newkey_luks()"
+	#print_line $stdebug "newkey_luks()"
 	local -i retval=0 # success
 	local luks_dev=''
 	local -i attached_bool=0 # 0=false, 1=true
@@ -487,7 +487,7 @@ function newkey_luks {
 }
 
 function mount_luks {
-	print_line $stdebug "mount_luks()"
+	#print_line $stdebug "mount_luks()"
 	local -i retval=0 # success
 	local -i key_mounted_bool=0 # 0=false 1=true
 	if [ -n "$KeyDev" ] ; then
@@ -540,7 +540,7 @@ function mount_luks {
 
 # unmounting an encrypted volume is a 3 steps process
 function unmount_luks {
-	print_line $stdebug "unmount_luks()"
+	#print_line $stdebug "unmount_luks()"
 	local -i retval=0 # success
 	local -i status=0; status=$(get_volume_status)
 
@@ -555,29 +555,29 @@ function unmount_luks {
 			# list open files, if any
 			lsof +d "$LuksMountPoint" 2>/dev/null ; retval=1
 			retval=1 # error
-			print_line $stdebug "unmount_luks() failed, error $retval"
+			#print_line $stdebug "unmount_luks() failed, error $retval"
 		fi
 		print_volume_status
 		;;
 
 	"$GVS_FAILED2") # unmount step 2 : container file attached (if any) and LUKS open but filesystem not mounted
-		print_line $stdebug "closing $LuksMap"
+		#print_line $stdebug "closing $LuksMap"
 		if cryptsetup close "$LuksMap" ; then
 			unmount_luks # recursive call to case GVS_FAILED1
 			retval=$?
 		else
 			retval=2 # error
-			print_line $stdebug "unmount_luks() failed, error $retval"
+			#print_line $stdebug "unmount_luks() failed, error $retval"
 		fi
 		;;
 
 	"$GVS_FAILED1") # unmount step 3 : container file attached, no LUKS open
-		print_line $stdebug "detaching $LuksMap"
+		#print_line $stdebug "detaching $LuksMap"
 		if detach_container_file ; then
 			retval=0
 		else
 			retval=3 # error
-			print_line $stdebug "unmount_luks() failed, error $retval"
+			#print_line $stdebug "unmount_luks() failed, error $retval"
 		fi
 		;;
 
@@ -590,7 +590,7 @@ function unmount_luks {
 }
 
 function delete_luks {
-	print_line $stdebug "delete_luks()"
+	#print_line $stdebug "delete_luks()"
 	local -i retval=0 # success
 
 	if [ "$(get_volume_status)" -eq $GVS_CLOSED ] ; then
@@ -675,7 +675,7 @@ function delete_luks {
 }
 
 function print_list {
-	print_line $stdebug "print_list()"
+	#print_line $stdebug "print_list()"
 	local path=''
 	find /dev/mapper -type l -print0 |while IFS= read -r -d '' path
 	do
@@ -695,7 +695,7 @@ function print_list {
 }
 
 function exec_action {
-	print_line $stdebug "exec_action($Action)"
+	#print_line $stdebug "exec_action($Action)"
 	local -i retval=0 # success
 	case "$Action" in
 	"$ACT_CREATE") if [ "$(get_volume_status)" -eq $GVS_CLOSED ] ; then
@@ -759,7 +759,7 @@ function usage {
 }
 
 function check_args {
-	print_line $stdebug "check_args($Action $Name)"
+	#print_line $stdebug "check_args($Action $Name)"
 	local -i retval=1 # error
 	local -ri VOLUME_MIN_SIZE=17 # because LUKS takes a 16 MB overhead
 	if [ "$Action" = $ACT_LIST ] ; then
@@ -810,7 +810,7 @@ if [ "$(id -u)" != '0' ] ; then
 fi
 readonly USERNAME=${SUDO_USER:-$USER} # get the underlying user logname (the one running sudo)
 
-print_line $stdebug "$(date '+%Y%m%dT%H%M') $(basename "$0" '.sh') $* (pid=$$)"
+#print_line $stdebug "$(date '+%Y%m%dT%H%M') $(basename "$0" '.sh') $* (pid=$$)"
 
 # Parse command line args
 readonly ACT_CREATE='create'
@@ -919,7 +919,7 @@ if check_args ; then
 			rmdir "$LuksMountPoint" 
 		fi
 	fi
-	print_line $stdebug "$(date '+%Y%m%dT%H%M') $(basename "$0" '.sh') $* (pid=$$) EXIT $Exitval"
+	#print_line $stdebug "$(date '+%Y%m%dT%H%M') $(basename "$0" '.sh') $* (pid=$$) EXIT $Exitval"
 	exit $Exitval
 else
 	exit 1
