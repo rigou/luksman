@@ -33,8 +33,9 @@ function print_line {
 # 	Proper handling of SIGINT/SIGQUIT http://www.cons.org/cracauer/sigint.html
 # 	Take no action when SIGINT is received while you wait for a child. Make a note of the fact that you did receive it, though. 
 declare -i ExitSignalReceived=0
+# shellcheck disable=SC2317  # Don't warn about unreachable commands in this function
 function interruption {
-	print_line $stderr "exiting"
+	print_line "$stderr" "\nexiting"
 	ExitSignalReceived=1
 }
 trap 'interruption' SIGINT SIGTERM SIGQUIT
@@ -81,18 +82,17 @@ function validate_temp_keyfile {
 	return $?
 }
 
-# Store a randomly generated 33 char key in a file
-# we create the key using a 90 ascii printable char set
-# a 33 char key lengths gives 3 x 10^64 distinct keys
+# Store a randomly generated 32 char key in a file
+# we create the key using a 90 ascii printable char set, giving 3 x 10^62 distinct keys
 # Since v1.1.4 the key string is not terminated by \n, enabling us to enter it with the keyboard if so desired
-# Lucks will use our key to unlock the master-key of the encrypted device
+# Lucks will use our key to unlock the master key of the encrypted device
 # (passphrases can be up to 512 characters and keyfiles up to 8192 KiB)
 function create_temp_keyfile {
 	print_line $stdebug "create_temp_keyfile()"
 	local -i retval=0 # success
 	local temp_keyfile ; temp_keyfile=$(get_temp_keyfile)
 	print_line $stdout "generating new key file"
-	local key ; key=$(LC_ALL=C tr -dc 'A-Za-z0-9_\+\-*/=,?;.:/!$&#{[|]}@%&$"~^' < /dev/random | head -c 33)
+	local key ; key=$(LC_ALL=C tr -dc 'A-Za-z0-9_\+\-*=,?;.:/!$&#{[|`]}@%&$"~^' < /dev/random | head -c 32)
 	if ! echo -n "$key" >"$temp_keyfile" ; then
 		retval=1 # error
 	fi
@@ -233,13 +233,13 @@ function print_volume_status {
 	case $status in
 	"$GVS_CLOSED") open_text="not mounted" ;;
 	"$GVS_MOUNTED") open_text="mounted at $LuksMountPoint" ;;
-	"$GVS_FAILED1") open_text="in failed state : loop device attached but LUKS not open" ;;
-	"$GVS_FAILED2") open_text="in failed state : LUKS open but filesystem not mounted" ;;
+	"$GVS_FAILED1") open_text="not fully mounted : loop device attached but LUKS not open" ;;
+	"$GVS_FAILED2") open_text="not fully mounted : LUKS open but filesystem not mounted" ;;
 	esac
 	open_text="$Name is $open_text"
 	if [ $status -eq  $GVS_FAILED1 ] || [ $status -eq  $GVS_FAILED2 ] ; then
 		print_line $stderr "$open_text"
-		print_line $stderr "try \"$(basename "$0") unmount $Name\" to fix this error"
+		print_line $stderr "try \"$APPNAME unmount $Name\" to fix this error"
 	else
 		print_line $stdout "$open_text"
 	fi
@@ -489,7 +489,7 @@ function newkey_luks {
 					fi
 					print_line $stdout "key replaced for $Name"
 				else
-					retval=1 # error
+					retval=1 # error or user sent SIGINT
 				fi
 			else
 				print_line $stdout "adding key file"
@@ -500,7 +500,7 @@ function newkey_luks {
 					fi
 					print_line $stdout "key added to $Name"
 				else
-					retval=1 # error
+					retval=1 # error or user sent SIGINT
 				fi
 			fi
 		fi
@@ -517,6 +517,8 @@ function newkey_luks {
 	fi
 	if [ $retval -eq 0 ] ; then
 		print_line $stdout "key registration complete"
+	else
+		print_line $stderr "did not register new key"
 	fi
 	return $retval
 }
@@ -556,7 +558,7 @@ function mount_luks {
 				else
 					cryptsetup open --type luks "$luks_dev" "$Name"
 				fi
-				retval=$?
+				retval=$? # 0=success, else error or user sent SIGINT
 				if [ $retval -eq 0 ] ; then
 					print_line $stdout "mounting $Name"
 					mount "$LuksMap" "$LuksMountPoint"
@@ -568,6 +570,9 @@ function mount_luks {
 	fi
 	if [ $key_mounted_bool -eq 1 ] ; then
 		unmount_key
+	fi
+	if  [ $retval -ne 0 ] ; then
+		unmount_luks
 	fi
 	print_volume_status
 	return $retval
@@ -649,13 +654,16 @@ function delete_luks {
 					if [ $ConfirmEnabled -eq 1 ] ; then
 						# prompt user to type YES
 						if ! cryptsetup erase "$luks_dev" ; then
-							retval=7 # user did not type YES
+							retval=7 # user did not type YES or they sent SIGINT
+							if is_attached_container_file "$Name" ; then
+								detach_container_file
+							fi
 						fi
 					else
 						cryptsetup -q erase "$luks_dev"
 					fi
 					if [ $retval -eq 0 ] ; then
-						# at this point all keyslots have been deleted but "cryptseup isLuks" still
+						# at this point all keyslots have been deleted but "cryptseup isLuks" would still
 						# returns true, so we overwrite the LUKS header of the container and beyond
 						# to remove any remaining LUKS signatures, as advised by LUKS FAQ at
 						# "5.4 How do I securely erase a LUKS container?"
@@ -664,7 +672,7 @@ function delete_luks {
 
 						if is_attached_container_file "$Name" ; then
 							if detach_container_file ; then 
-								print_line $stdout "deleting $ContainerFile"
+								print_line $stdout "deleting $(basename "$ContainerFile")"
 								if ! rm "$ContainerFile" ; then
 									retval=6 # error
 								fi
@@ -703,7 +711,6 @@ function delete_luks {
 	if  [ $retval -eq 0 ] ; then
 		print_line $stdout "$Name is deleted"
 	else
-		print_volume_status
 		print_line $stderr "did not delete $Name"
 	fi
 	return $retval
@@ -737,7 +744,7 @@ function exec_action {
 			create_luks
 			retval=$?
 		else
-			print_line $stderr "$Name is in use : unmount it first with \"$(basename "$0") unmount $Name\""
+			print_line $stderr "$Name is in use : unmount it first with \"$APPNAME unmount $Name\""
 			retval=1
 		fi
 		;;
@@ -810,8 +817,8 @@ function check_args {
 				if [ -n "$BlockDisk" ] && [ -z "$Folder" ] ; then retval=0 ; fi
 				;;
 			"$ACT_NEWKEY")
-				if [ -n "$Folder" ] && [ -z "$BlockDisk" ] ; then retval=0 ; fi
-				if [ -z "$Folder" ] && [ -n "$BlockDisk" ] ; then retval=0 ; fi
+				if [ -n "$Folder" ] && [ -z "$BlockDisk" ] && [ -n "$KeyDisk" ] ; then retval=0 ; fi
+				if [ -z "$Folder" ] && [ -n "$BlockDisk" ] && [ -n "$KeyDisk" ] ; then retval=0 ; fi
 				;;
 			"$ACT_MOUNT" | "$ACT_DELETE")
 				if [ -n "$Folder" ] && [ -z "$BlockDisk" ] ; then retval=0 ; fi
@@ -845,7 +852,7 @@ if [ "$(id -u)" != '0' ] ; then
 fi
 readonly USERNAME=${SUDO_USER:-$USER} # get the underlying user logname (the one running sudo)
 
-print_line $stdebug "$(date '+%Y%m%dT%H%M') $(basename "$0" '.sh') $* (pid=$$)"
+print_line $stdebug "$(date '+%Y%m%dT%H%M') $APPNAME $* (pid=$$)"
 
 # Parse command line args
 readonly ACT_CREATE='create'
@@ -963,5 +970,5 @@ fi
 
 rmdir $AppTmpDir
 
-print_line $stdebug "$(date '+%Y%m%dT%H%M') $(basename "$0" '.sh') $* (pid=$$) EXIT $Exitval"
+print_line $stdebug "$(date '+%Y%m%dT%H%M') $APPNAME $* (pid=$$) EXIT $Exitval"
 exit $Exitval
