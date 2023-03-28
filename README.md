@@ -47,7 +47,7 @@ sudo luksman action [volume_name [options]]
 
 **Volume name :**
 * this name uniquely identifies an encrypted volume. The key file (if any) and the container file (if any) are named after it. 
-* for ease of use avoid spaces in this name and do not use common illegal characters or symbols for file names : / (forward slash), < (less than), > (greater than), : (colon), " (double quote), \ (backslash), | (vertical bar or pipe), ? (question mark), * (asterisk).
+* Do not use white-space characters in this name and do not use common illegal characters or symbols for file names : / (forward slash), < (less than), > (greater than), : (colon), " (double quote), \ (backslash), | (vertical bar or pipe), ? (question mark), * (asterisk).
 
 **Options :**
 * **-d** location (device path in /dev or UUID) of the disk (or flash drive, or SD card) where the encrypted volume is (or will be) located

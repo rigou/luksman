@@ -30,8 +30,7 @@ function print_line {
 	esac
 }
 
-# 	Proper handling of SIGINT/SIGQUIT http://www.cons.org/cracauer/sigint.html
-# 	Take no action when SIGINT is received while you wait for a child. Make a note of the fact that you did receive it, though. 
+# SIGINT SIGTERM SIGQUIT handling
 declare -i ExitSignalReceived=0
 # shellcheck disable=SC2317  # Don't warn about unreachable commands in this function
 function interruption {
@@ -50,22 +49,10 @@ function inc_Trim {
     echo -n "$text"
 }
 
-# sanitize given name for fat32 compatibility
+# sanitize given name for fat32 compatibility and remove white-space characters
 function sanitize_name {
     if [ -n "$1" ] ; then
-	    local text=$1
-		text="${text//$'\n'/}"
-		text="${text//$'\r'/}"
-		text="${text//\//}"
-		text="${text//</}"
-		text="${text//>/}"
-		text="${text//:/}"
-		text="${text//\"/}"
-		text="${text//\\/}"
-		text="${text//|/}"
-		text="${text//\?/}"
-		text="${text//\*/}"
-		echo -n "$text"
+		LC_ALL=C tr -d '[:space:][:cntrl:]/<>:"\\|?*' <<<"$1"
     fi
 }
 
@@ -92,7 +79,7 @@ function create_temp_keyfile {
 	local -i retval=0 # success
 	local temp_keyfile ; temp_keyfile=$(get_temp_keyfile)
 	print_line $stdout "generating new key file"
-	local key ; key=$(LC_ALL=C tr -dc 'A-Za-z0-9_\+\-*=,?;.:/!$&#{[|`]}@%&$"~^' < /dev/random | head -c 32)
+	local key ; key=$(LC_ALL=C tr -dc '[:alnum:]_\+\-*=,?;.:/!$&#{[|`]}@%&$"~^' < /dev/random | head -c 32)
 	if ! echo -n "$key" >"$temp_keyfile" ; then
 		retval=1 # error
 	fi
@@ -832,7 +819,7 @@ function check_args {
 				print_line $stderr "missing/extra/invalid arg"
 			fi
 		else
-			print_line $stderr "$Name contains illegal character(s)"
+			print_line $stderr "\"$Name\" contains illegal character(s)"
 			retval=1
 		fi
 	fi
