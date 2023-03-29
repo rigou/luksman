@@ -12,6 +12,9 @@
 # Installation, usage : https://github.com/rigou/luksman/blob/main/README.md
 # Run this script as root (sudo)
 
+# $$TODO test space char in key label : fixed, test ok
+# test accented chars in volume name : KO, require pure ascii
+
 set -o nounset
 
 readonly APPNAME='luksman'
@@ -49,11 +52,9 @@ function inc_Trim {
     echo -n "$text"
 }
 
-# sanitize given name for fat32 compatibility and remove white-space characters
+# remove white-space and all non-ascii non-printable characters
 function sanitize_name {
-    if [ -n "$1" ] ; then
-		LC_ALL=C tr -d '[:space:][:cntrl:]/<>:"\\|?*' <<<"$1"
-    fi
+    LC_ALL=C tr -dc '[:alnum:]@_\-' <<<"$1"
 }
 
 function get_temp_keyfile {
@@ -117,38 +118,61 @@ function unmount_key {
 	return $retval
 }
 
+# Retrieve the type of given disk id ( label or uuid or path /dev/sdxy )
+# Return value :
+declare -ir DSKID_ERROR=0
+declare -ir DSKID_LABEL=1
+declare -ir DSKID_UUID=2
+declare -ir DSKID_PATH=3
+function get_disk_id_type {
+	print_line $stdebug "get_disk_id_type()"
+	local -i retval=$DSKID_ERROR
+	local disk_id=$1 # either label or uuid or path /dev/sdxy
+	if [ -n "$disk_id" ] ; then
+		if [ "${disk_id:0:1}" = '/' ] ; then
+			retval=$DSKID_PATH
+		elif [ -n "$(readlink -fe "/dev/disk/by-uuid/$disk_id")" ] ; then
+			retval=$DSKID_UUID
+		else
+			retval=$DSKID_LABEL
+		fi
+	fi
+	echo $retval
+	return $retval
+}
+
 # Retrieve a disk device from its label or uuid and check that this device is valid
 # arg1=disk label : print the device corresponding to given label
 # or arg1=disk uuid : print the device corresponding to given uuid
 # or arg1=path of a device in /dev : verify device exists and print arg1
 # if given label, uuid and device are invalid or empty, print nothing
-# Return value : 0=success, 1=error
+# Return value : 0=success 1=error
 function get_disk_device {
 	print_line $stdebug "get_disk_device()"
-	local -i retval=1 # 0=success, 1=error
-	local disk_id=$1 # either label or uuid or /dev/sdxy
-	if [ -n "$disk_id" ] ; then
-		if [ "${disk_id:0:1}" = '/' ] ; then
-			if [ -b "$disk_id" ] ; then
-				echo "$disk_id"
-				retval=0
-			fi
-		else
-			local dev_from_label=''
-			dev_from_label=$(readlink -fe "/dev/disk/by-label/$disk_id")
-			if [ -n "$dev_from_label" ] ; then
-				echo "$dev_from_label"
-				retval=0
-			else
-				local dev_from_uuid=''
-				dev_from_uuid=$(readlink -fe "/dev/disk/by-uuid/$disk_id")
-				if [ -n "$dev_from_uuid" ] ; then
-					echo "$dev_from_uuid"
-					retval=0
-				fi
-			fi
+	local -i retval=1 # error
+	local disk_id=$1 # either label or uuid or path /dev/sdxy
+	case $(get_disk_id_type "$disk_id") in
+	"$DSKID_PATH") 
+		if [ -b "$disk_id" ] ; then
+			echo "$disk_id"
+			retval=0
 		fi
-	fi
+		;;
+	"$DSKID_UUID")
+		local dev_from_uuid='' ; dev_from_uuid=$(readlink -fe "/dev/disk/by-uuid/$disk_id")
+		if [ -n "$dev_from_uuid" ] ; then
+			echo "$dev_from_uuid"
+			retval=0
+		fi
+		;;
+	"$DSKID_LABEL")
+		local dev_from_label='' ; dev_from_label=$(readlink -fe "/dev/disk/by-label/$disk_id")
+		if [ -n "$dev_from_label" ] ; then
+			echo "$dev_from_label"
+			retval=0
+		fi
+		;;
+	esac
 	return $retval
 }
 
@@ -789,15 +813,24 @@ function usage {
 
 function check_args {
 	print_line $stdebug "check_args($Action $Name)"
-	local -i retval=1 # error
+	local -i retval=0 # success
 	local -ri VOLUME_MIN_SIZE=17 # because LUKS takes a 16 MB overhead
-	if [ "$Action" = $ACT_LIST ] ; then
-		retval=0 # list takes no args
-	elif [ -n "$Name" ] ; then
-		# check Name
-		local filtered_name='' ; filtered_name=$(sanitize_name "$Name")
-		if [ "$filtered_name" = "$Name" ] ; then
+	if [ "$Action" != $ACT_LIST ] ; then # else action "list" takes no args, ignore any extra argument
+		# check Name for invalid characters
+		if [ "$Name" != "$(sanitize_name "$Name")" ] ; then
+			print_line $stderr "name \"$Name\" contains illegal character(s)"
+			retval=1
+		fi
+		# check KeyDisk label for invalid characters
+		if [ "$(get_disk_id_type "$KeyDisk")" -eq $DSKID_LABEL ] ; then
+			if [ "$KeyDisk" != "$(sanitize_name "$KeyDisk")" ] ; then
+				print_line $stderr "label \"$KeyDisk\" contains illegal character(s)"
+				retval=1
+			fi
+		fi
+		if [ $retval -eq 0 ] ; then
 			# check required arguments
+			retval=1
 			case "$Action" in
 			"$ACT_CREATE")
 				if [ -n "$Folder" ] && [ -z "$BlockDisk" ] && [ $Size -ge $VOLUME_MIN_SIZE ] ; then retval=0 ; fi
@@ -818,9 +851,6 @@ function check_args {
 			if [ $retval -ne 0 ] ; then 
 				print_line $stderr "missing/extra/invalid arg"
 			fi
-		else
-			print_line $stderr "\"$Name\" contains illegal character(s)"
-			retval=1
 		fi
 	fi
 	if [ $retval -eq 0 ] ; then 
