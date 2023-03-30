@@ -46,15 +46,15 @@ sudo luksman action [volume_name [options]]
 * **list** : list mounted volumes
 
 **Volume name :**
-* this name uniquely identifies an encrypted volume. The key file (if any) and the container file (if any) are named after it. 
-* Do not use white-space characters in this name and do not use common illegal characters or symbols for file names : / (forward slash), < (less than), > (greater than), : (colon), " (double quote), \ (backslash), | (vertical bar or pipe), ? (question mark), * (asterisk).
+* this name uniquely identifies an encrypted volume. The key file (if any) and the container file (if any) are named after it
+* the valid characters for a volume name are: letters A-Z (both uppercase and lowercase), numbers 0-9, "@", "-", "_"
 
 **Options :**
-* **-d** location (device path in /dev or UUID) of the disk (or flash drive, or SD card) where the encrypted volume is (or will be) located
+* **-d** location (device path in /dev or UUID) of the disk (or flash drive, or SD card) where the encrypted volume is (or will be) located. UUID is prefered because device path may change unexpectedly. List UUIDs with ``lsblk -o NAME,UUID``
 * **-f** path of the folder where the container file is (or will be) located. An absolute path is recommended ; a relative path will be interpreted as relative to your home directory. Options -d and -f are mutually exclusive
 * **-s** size of the container file which will be created, in MB (1024x1024). Applies only to volumes created with option -f . The minimum size is 17 MB
-* **-k** location (device path in /dev, UUID or label) of the disk (or flash drive, or SD card) where the key file is (or will be) located
-* **-y** do not ask user to type YES to confirm actions which may result in existing data loss
+* **-k** location (device path in /dev, UUID or label) of the disk (or flash drive, or SD card) where the key file is (or will be) located. Label or UUID are prefered because device path may change unexpectedly. List labels and UUIDs with ``lsblk -o NAME,LABEL,UUID`` . The valid characters of a label are the same as a volume name (see above)
+* **-y** do not ask user to confirm actions which may result in existing data loss
 
 ### 1. Create an encrypted volume
 ```console
@@ -70,9 +70,9 @@ sudo luksman create name (-d device | -f folder -s size_MB) [-k keyfile] [-y]
 ```console
 luksman create CLASSIFIED -f /home/scott -s 128
 ```
-**Create a 128 MB encrypted volume in a container file named CLASSIFIED, store it in the folder /home/scott, generate a random key and write it in a key file located in the flash drive labeled MYKEYS :**
+**Create a 128 MB encrypted volume in a container file named CLASSIFIED, store it in the folder /home/scott, generate a random key and write it in a key file located in the flash drive labeled MY-KEYS :**
 ```console
-luksman create CLASSIFIED -f /home/scott -s 128 -k MYKEYS
+luksman create CLASSIFIED -f /home/scott -s 128 -k MY-KEYS
 ```
 **Create a 128 MB encrypted volume in a container file named CLASSIFIED, store it in the folder /home/scott, generate a random key and write it in a key file located in the flash drive at /dev/sdb1 :**
 ```console
@@ -82,9 +82,9 @@ luksman create CLASSIFIED -f /home/scott -s 128 -k /dev/sdb1
 ```console
 luksman create CLASSIFIED -d /dev/sda3
 ```
-**Create an encrypted volume in the disk /dev/sda3, generate a random key and write it in a key file located in the flash drive labeled MYKEYS :**
+**Create an encrypted volume in the disk /dev/sda3, generate a random key and write it in a key file located in the flash drive labeled MY-KEYS :**
 ```console
-luksman create CLASSIFIED -d /dev/sda3 -k MYKEYS
+luksman create CLASSIFIED -d /dev/sda3 -k MY-KEYS
 ```
 **Create an encrypted volume in the disk /dev/sda3, generate a random key and write it in a key file located in the flash drive at /dev/sdb1 :**
 ```console
@@ -104,13 +104,13 @@ luksman newkey name (-d device | -f folder) -k keyfile
 
 <details><summary>click here to see some examples</summary>
 
-**Add or replace the key file of the encrypted volume named CLASSIFIED in the folder /home/scott, and write this key file in the flash drive labeled MYKEYS :**
+**Add or replace the key file of the encrypted volume named CLASSIFIED in the folder /home/scott, and write this key file in the flash drive labeled MY-KEYS :**
 ```console
-luksman newkey CLASSIFIED -f /home/scott -k MYKEYS
+luksman newkey CLASSIFIED -f /home/scott -k MY-KEYS
 ```
-**Add or replace the key file of the encrypted volume in the disk /dev/sda3, and write this key file in the flash drive labeled MYKEYS :**
+**Add or replace the key file of the encrypted volume in the disk /dev/sda3, and write this key file in the flash drive labeled MY-KEYS :**
 ```console
-luksman newkey CLASSIFIED -d /dev/sda3 -k MYKEYS
+luksman newkey CLASSIFIED -d /dev/sda3 -k MY-KEYS
 ```
 **Add or replace the key file of the encrypted volume named CLASSIFIED in the folder /home/scott, and write this key file in the flash drive at /dev/sdb1 :**
 ```console
@@ -137,9 +137,9 @@ luksman mount name (-d device | -f folder) [-k keyfile]
 ```console
 luksman mount CLASSIFIED -f /home/scott
 ```
-**Mount the encrypted volume named CLASSIFIED located in the folder /home/scott, using a key file in the flash drive labeled MYKEYS :**
+**Mount the encrypted volume named CLASSIFIED located in the folder /home/scott, using a key file in the flash drive labeled MY-KEYS :**
 ```console
-luksman mount CLASSIFIED -f /home/scott -k MYKEYS
+luksman mount CLASSIFIED -f /home/scott -k MY-KEYS
 ```
 **Mount the encrypted volume named CLASSIFIED located in the folder /home/scott, using a key file in the flash drive at /dev/sdb1 :**
 ```console
@@ -149,9 +149,9 @@ luksman mount CLASSIFIED -f /home/scott -k /dev/sdb1
 ```console
 luksman mount CLASSIFIED -d /dev/sda3
 ```
-**Mount the encrypted volume located in the disk /dev/sda3, using a key file in the flash drive labeled MYKEYS :**
+**Mount the encrypted volume located in the disk /dev/sda3, using a key file in the flash drive labeled MY-KEYS :**
 ```console
-luksman mount CLASSIFIED -d /dev/sda3 -k MYKEYS
+luksman mount CLASSIFIED -d /dev/sda3 -k MY-KEYS
 ```
 **Mount the encrypted volume located in the disk /dev/sda3, using a key file in the flash drive at /dev/sdb1 :**
 ```console
@@ -194,9 +194,9 @@ luksman delete name (-d device | -f folder) [-k keyfile] [-y]
 ```console
 luksman delete CLASSIFIED -f /home/scott
 ```
-**Delete the encrypted volume named CLASSIFIED located in the folder /home/scott, and the key file in the flash drive labeled MYKEYS :**
+**Delete the encrypted volume named CLASSIFIED located in the folder /home/scott, and the key file in the flash drive labeled MY-KEYS :**
 ```console
-luksman delete CLASSIFIED -f /home/scott -k MYKEYS
+luksman delete CLASSIFIED -f /home/scott -k MY-KEYS
 ```
 **Delete the encrypted volume named CLASSIFIED located in the folder /home/scott, and the key file in the flash drive at /dev/sdb1 :**
 ```console
@@ -206,9 +206,9 @@ luksman delete CLASSIFIED -f /home/scott -k /dev/sdb1
 ```console
 luksman delete CLASSIFIED -d /dev/sda3
 ```
-**Delete the encrypted volume located in the disk /dev/sda3, and the key file in the flash drive labeled MYKEYS :**
+**Delete the encrypted volume located in the disk /dev/sda3, and the key file in the flash drive labeled MY-KEYS :**
 ```console
-luksman delete CLASSIFIED -d /dev/sda3 -k MYKEYS
+luksman delete CLASSIFIED -d /dev/sda3 -k MY-KEYS
 ```
 **Delete the encrypted volume located in the disk /dev/sda3, and the key file in the flash drive at /dev/sdb1 :**
 ```console

@@ -12,9 +12,6 @@
 # Installation, usage : https://github.com/rigou/luksman/blob/main/README.md
 # Run this script as root (sudo)
 
-# $$TODO test space char in key label : fixed, test ok
-# test accented chars in volume name : KO, require pure ascii
-
 set -o nounset
 
 readonly APPNAME='luksman'
@@ -35,7 +32,7 @@ function print_line {
 
 # SIGINT SIGTERM SIGQUIT handling
 declare -i ExitSignalReceived=0
-# shellcheck disable=SC2317  # Don't warn about unreachable commands in this function
+# shellcheck disable=SC2317  # Do not warn about unreachable commands in this function
 function interruption {
 	print_line "$stderr" "\nexiting"
 	ExitSignalReceived=1
