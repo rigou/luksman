@@ -1,11 +1,14 @@
 #!/bin/bash
-# interrupt the test sequence with this command: touch $HOME/test/STOP
+# This script is part of the luksman test suite, see https://github.com/rigou/luksman
 
-readonly BlockDev='/dev/sdc1'
+# you can interrupt this script with this command: touch $HOME/test/STOP
+# it will make a clean exit, not leaving any file open
 
-readonly KeyDev='/dev/sdb1'
-readonly KeyUUID='F55A-FCA5'
-readonly KeyLabel='LUKSMANDEV'
+# adjust the devices information below before running this script :
+readonly BlockDev='/dev/sdc1' # scratch crypted volume *** ITS CURRENT CONTENTS WILL BE LOST ***
+readonly KeyDev='/dev/sdb1' # key files flash drive
+readonly KeyUUID='656E-774B'
+readonly KeyLabel='LUKSMAN-DEV'
 
 readonly HOMEDIR="/home/${SUDO_USER:-$USER}"
 readonly LocalDir="$HOMEDIR/test"
@@ -18,9 +21,18 @@ function exit_error {
 #-----------------
 # BEGIN
 #-----------------
+
 if [ "$(id -u)" != '0' ] ; then
 	echo "$(basename "$0") must run as root, run it with sudo $APPNAME"
 	exit 1
+fi
+
+declare confirmed=''
+lsblk -o NAME,SIZE,RM,MOUNTPOINT,LABEL,UUID
+read -r -p "Contents of disk $BlockDev will be lost, are you sure (type yes in capital letters) ? " confirmed
+if [ "$confirmed" != 'YES' ] ; then
+    echo "cancelled"
+    exit 1
 fi
 
 echo "$(date '+%Y%m%dT%H%M') $(basename "$0" '.sh') (pid=$$) BEGIN"

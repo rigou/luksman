@@ -1,7 +1,9 @@
 #!/bin/bash
+# This script is part of the luksman test suite, see https://github.com/rigou/luksman
+# it is a subprogram and should not be called from the command line
 
 if [ $# -ne 5 ] ; then
-	echo "usage: $(basename "$0") volume_name vol_option(-d -f) vol_path key_option(-k) key_path"
+	echo "usage: $(basename "$0") volume_name vol_option(-d -f -UUID) vol_path key_option(-k) key_path"
 	exit 1
 fi
 
@@ -20,7 +22,7 @@ function create_sample_text_file {
     local path=$1
     rm -f "$path"
     while [ $kcount -lt 100 ] ; do
-        LC_ALL=C tr -dc 'A-Za-z0-9_\+\-*/=,?;.:/!$&#{[|]}@%&$"~^' < /dev/urandom | head -c 999 >>"$path"
+        LC_ALL=C tr -dc '[:alnum:]_\+\-*=,?;.:/!$&#{[|`]}@%&$"~^' < /dev/urandom | head -c 999 >>"$path"
         echo >>"$path"
         kcount+=1
     done   

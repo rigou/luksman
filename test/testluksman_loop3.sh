@@ -1,8 +1,17 @@
 #!/bin/bash
+# This script is part of the luksman test suite, see https://github.com/rigou/luksman
 
-# readonly BlockDev='/dev/sdc1'
-# readonly KeyDev='/dev/sdb1'
-readonly KeyLabel='LUKSMANDEV'
+# testluksman_loop1.sh, testluksman_loop2.sh and testluksman_loop3.sh are used for testing luksman behaviour under heavy system load
+# run them each in a different terminal. They will run indefinitely unless an error occurs.
+# you can stop the test at any moment by creating a STOP file in LocalDir : touch $HOMEDIR/test/STOP
+
+# testluksman_loop3.sh : adjust the paths of the devices before running this script. Original values are:
+# - scratch crypted volume : /dev/sdc1 *** ITS CURRENT CONTENTS WILL BE LOST ***
+# - key files flash drive : /dev/sdb1   label : LUKSMAN-DEV
+readonly BlockDev='/dev/sdc1'
+readonly KeyDev='/dev/sdb1'
+readonly KeyLabel='LUKSMAN-DEV'
+
 readonly HOMEDIR="/home/${SUDO_USER:-$USER}"
 readonly LocalDir="$HOMEDIR/test"
 
@@ -39,7 +48,7 @@ declare -i iteration=0
 while ! [ -f "$LocalDir/STOP" ] ; do
     iteration+=1
     echo "$(date '+%Y%m%dT%H%M') $(basename "$0" '.sh') iteration $iteration BEGIN"
-    if ! ./testluksman_param.sh "TEST02" -f "$LocalDir" -l "$KeyLabel" ; then
+    if ! ./testluksman_param.sh "TEST03" -d "$BlockDev" -k "$KeyDev" ; then
         exit_error
     fi
     echo "$(date '+%Y%m%dT%H%M') $(basename "$0" '.sh') iteration $iteration END"

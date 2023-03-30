@@ -50,17 +50,17 @@ sudo luksman action [volume_name [options]]
 * the valid characters for a volume name are: letters A-Z (both uppercase and lowercase), numbers 0-9, "@", "-", "_"
 
 **Options :**
-* **-d** location (device path in /dev or UUID) of the disk (or flash drive, or SD card) where the encrypted volume is (or will be) located. UUID is prefered because device path may change unexpectedly. List UUIDs with ``lsblk -o NAME,UUID``
+* **-d** location (device path in /dev or UUID) of the disk (or flash drive, or SD card) where the encrypted volume is (or will be) located. UUID is prefered because device path may change unexpectedly. List UUIDs with ``lsblk -o NAME,RM,UUID``
 * **-f** path of the folder where the container file is (or will be) located. An absolute path is recommended ; a relative path will be interpreted as relative to your home directory. Options -d and -f are mutually exclusive
 * **-s** size of the container file which will be created, in MB (1024x1024). Applies only to volumes created with option -f . The minimum size is 17 MB
-* **-k** location (device path in /dev, UUID or label) of the disk (or flash drive, or SD card) where the key file is (or will be) located. Label or UUID are prefered because device path may change unexpectedly. List labels and UUIDs with ``lsblk -o NAME,LABEL,UUID`` . The valid characters of a label are the same as a volume name (see above)
+* **-k** location (device path in /dev, UUID or label) of the disk (or flash drive, or SD card) where the key file is (or will be) located. Label or UUID are prefered because device path may change unexpectedly. List labels and UUIDs with ``lsblk -o NAME,RM,LABEL,UUID`` . The valid characters of a label are the same as a volume name (see above)
 * **-y** do not ask user to confirm actions which may result in existing data loss
 
 ### 1. Create an encrypted volume
 ```console
 sudo luksman create name (-d device | -f folder -s size_MB) [-k keyfile] [-y]
 ```
-* WARNING: when using option -d, the data currently stored at this location will be lost ; use ``lsblk`` to double-check because device names in /dev may change according to what you have plugged in at the time
+* WARNING: when using option -d, the data currently stored at this location will be lost ; use ``lsblk`` to make certain it is correct
 * when using option -f, the container file will be created in the specified folder with the given name and the ".dat" extension
 * when using option -k the key file will be created in the "/luksman" folder of the specified device with the given name and the ".key" extension
 
