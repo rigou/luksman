@@ -24,7 +24,7 @@ sudo apt install cryptsetup-bin
 ```
 Download the latest release of luksman at https://github.com/rigou/luksman/releases
 ```console
-tar xzf luksman_vx.y.z.tar.gz
+tar xzf luksman-vx.y.z.tar.gz
 sudo chown root: luksman
 sudo chmod 770 luksman
 sudo mv luksman /usr/local/sbin
