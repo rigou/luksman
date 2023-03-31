@@ -1,6 +1,11 @@
 #!/bin/bash
 # This script is part of the luksman test suite, see https://github.com/rigou/luksman
-
+# 
+# testluksman.sh runs luksman with various combinations of command line arguments
+#
+# Do not run several instances of this script simultaneously
+# Do not run testluksman_loop1.sh, testluksman_loop2.sh or testluksman_loop3.sh while this script is running
+#
 # you can interrupt this script with this command: touch $HOME/test/STOP
 # it will make a clean exit, not leaving any file open
 

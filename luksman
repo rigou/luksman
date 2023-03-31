@@ -3,7 +3,7 @@
 # download the latest version of this program : https://github.com/rigou/luksman/releases
 #
 # Richard Goutorbe (rigou@palavas.org), the original author of this program, published it
-# in March 2023 under the GNU General Public License. This program is free software and
+# in April 2023 under the GNU General Public License. This program is free software and
 # you can redistribute it and/or modify it under the terms of the GNU General Public License 
 # as published by the Free Software Foundation, version 3.
 # This program is distributed in the hope that it will be useful, but WITHOUT ANY WARRANTY.
@@ -15,7 +15,7 @@
 set -o nounset
 
 readonly APPNAME='luksman'
-readonly VERSION='1.4.0'
+readonly VERSION='1.4.1'
 
 # output user-readable messages
 declare -i DEBUG_ENABLED=0 # 1=enabled, 0=disabled
@@ -47,6 +47,16 @@ function inc_Trim {
     # remove trailing whitespace characters
     text="${text%"${text##*[![:space:]]}"}"   
     echo -n "$text"
+}
+
+# Find position (0-based) of substring $2 in string $1
+# returns -1 if $2 not found in $1
+# Example: a="The cat sat on the mat"
+# 	inc_Strpos "$a" cat		prints 4
+# 	inc_Strpos "$a" dog		prints -1
+function inc_Strpos {
+	local part="${1%%$2*}"
+	[[ "$part" = "$1" ]] && echo -1 || echo "${#part}"
 }
 
 # remove white-space and all non-ascii non-printable characters
@@ -812,48 +822,55 @@ function check_args {
 	print_line $stdebug "check_args($Action $Name)"
 	local -i retval=0 # success
 	local -ri VOLUME_MIN_SIZE=17 # because LUKS takes a 16 MB overhead
-	if [ "$Action" != $ACT_LIST ] ; then # else action "list" takes no args, ignore any extra argument
+	if [ "$(inc_Strpos ":$ACT_CREATE:$ACT_NEWKEY:$ACT_MOUNT:$ACT_UNMOUNT:$ACT_DELETE:$ACT_LIST:" ":$Action:")" -ge 0 ] ; then
 		# check Name for invalid characters
 		if [ "$Name" != "$(sanitize_name "$Name")" ] ; then
 			print_line $stderr "name \"$Name\" contains illegal character(s)"
-			retval=1
+			retval=2
 		fi
 		# check KeyDisk label for invalid characters
 		if [ "$(get_disk_id_type "$KeyDisk")" -eq $DSKID_LABEL ] ; then
 			if [ "$KeyDisk" != "$(sanitize_name "$KeyDisk")" ] ; then
 				print_line $stderr "label \"$KeyDisk\" contains illegal character(s)"
-				retval=1
+				retval=3
 			fi
 		fi
 		if [ $retval -eq 0 ] ; then
-			# check required arguments
-			retval=1
-			case "$Action" in
-			"$ACT_CREATE")
-				if [ -n "$Folder" ] && [ -z "$BlockDisk" ] && [ $Size -ge $VOLUME_MIN_SIZE ] ; then retval=0 ; fi
-				if [ -n "$BlockDisk" ] && [ -z "$Folder" ] ; then retval=0 ; fi
-				;;
-			"$ACT_NEWKEY")
-				if [ -n "$Folder" ] && [ -z "$BlockDisk" ] && [ -n "$KeyDisk" ] ; then retval=0 ; fi
-				if [ -z "$Folder" ] && [ -n "$BlockDisk" ] && [ -n "$KeyDisk" ] ; then retval=0 ; fi
-				;;
-			"$ACT_MOUNT" | "$ACT_DELETE")
-				if [ -n "$Folder" ] && [ -z "$BlockDisk" ] ; then retval=0 ; fi
-				if [ -n "$BlockDisk" ] && [ -z "$Folder" ] ; then retval=0 ; fi
-				;;
-			"$ACT_UNMOUNT" | "$ACT_LIST")
-				if [ -z "$Folder" ] && [ -z "$BlockDisk" ] && [ -z "$KeyDisk" ] && [ $Size -eq 0 ] ; then retval=0 ; fi
-				;;
-			esac
+			# if Folder or BlockDisk is given, check they are not both given
+			if [ -n "$Folder" ] || [ -n "$BlockDisk" ] ; then
+				if [ -n "$Folder" ] && [ -n "$BlockDisk" ] ; then retval=4 ; fi
+			fi
+			if [ $retval -eq 0 ] ; then
+				# check required arguments
+				case "$Action" in
+				"$ACT_CREATE")
+					if [ -z "$Name" ] || [ -z "$Folder" ] && [ -z "$BlockDisk" ] ; then retval=5 ; fi
+					if [ $Size -ne 0 ] && [ $Size -lt $VOLUME_MIN_SIZE ] ; then retval=6 ; fi
+					;;
+				"$ACT_NEWKEY" | "$ACT_MOUNT" | "$ACT_DELETE")
+					if [ -z "$Name" ] || [ -z "$Folder" ] && [ -z "$BlockDisk" ] || [ $Size -ne 0 ] ; then retval=5 ; fi
+					;;
+				"$ACT_UNMOUNT")
+					if [ -z "$Name" ] || [ -n "$Folder" ] || [ -n "$BlockDisk" ] || [ -n "$KeyDisk" ] || [ $Size -ne 0 ] ; then retval=5 ; fi
+					;;
+				"$ACT_LIST")
+					if [ -n "$Name" ] || [ -n "$Folder" ] || [ -n "$BlockDisk" ] || [ -n "$KeyDisk" ] || [ $Size -ne 0 ] ; then retval=5 ; fi
+					;;
+				esac
+			fi
 			if [ $retval -ne 0 ] ; then 
-				print_line $stderr "missing/extra/invalid arg"
+				print_line $stderr "missing/extra/invalid argument(s)"
 			fi
 		fi
-	fi
-	if [ $retval -eq 0 ] ; then 
-		if [ -n "$Folder" ] && ! [ -d "$Folder" ] ; then print_line $stderr "folder $Folder not found" ; retval=2 ; fi
-		if [ -n "$BlockDisk" ] && ! [ -b "$BlockDev" ] ; then print_line $stderr "device $BlockDisk not found" ; retval=2 ; fi
-		if [ -n "$KeyDisk" ] && ! [ -b "$KeyDev" ] ; then print_line $stderr "device $KeyDisk not found" ; retval=2 ; fi
+	
+		if [ $retval -eq 0 ] ; then 
+			if [ -n "$Folder" ] && ! [ -d "$Folder" ] ; then print_line $stderr "folder $Folder not found" ; retval=7 ; fi
+			if [ -n "$BlockDisk" ] && ! [ -b "$BlockDev" ] ; then print_line $stderr "device $BlockDisk not found" ; retval=7 ; fi
+			if [ -n "$KeyDisk" ] && ! [ -b "$KeyDev" ] ; then print_line $stderr "device $KeyDisk not found" ; retval=7 ; fi
+		fi
+	else
+		print_line $stderr "invalid action $Action"
+		retval=1
 	fi
 	return $retval
 }
@@ -880,21 +897,19 @@ if [ $# -eq 0 ] ; then
 	exit 1
 fi
 
-# parse positional args
-declare Action=$1
+# parse positional arguments
+declare Action=$1 ; shift
 declare Name='' # empty if Action=ACT_LIST
-if [ $# -ge 2 ] ; then
-	Name=$2
+if [ $# -gt 0 ] ; then
+	Name=$1 ; shift
 fi
-shift 2
 
-# parse optional args
+# parse optional arguments
 declare Folder=''
 declare -i Size=0
 declare BlockDisk=''
 declare KeyDisk=''
 declare -i ConfirmEnabled=1 # by default, ask user to type YES to confirm some actions
-
 if [ $# -ne 0 ] ; then
 	while getopts f:s:d:k:y option
 	do
@@ -909,6 +924,9 @@ if [ $# -ne 0 ] ; then
 	done
 	shift $((OPTIND -1)) 
 fi
+if [ $# -ne 0 ] ; then
+	print_line $stderr "WARNING: extra argument(s) $* will be ignored"
+fi
 
 # Initializations
 declare -i Exitval=0
@@ -916,7 +934,7 @@ declare BlockDev='' # /dev/sdxy path of the device corresponding to arg -d
 declare KeyDev='' # /dev/sdxy path of the device corresponding to arg -k
 
 # change to user's home dir in order to prevent errors like
-# "find: Failed to restore initial working directory: /mnt/sshfs/enigma:59607/home/rigou/bin/backup: Permission denied"
+# "find: Failed to restore initial working directory: /mnt/sshfs/hpnas/home/scott/bin: Permission denied"
 # as a result, the -f folder option should specify an absolute path, or a path relative to the home dir
 if ! cd "/home/${SUDO_USER:-$USER}" ; then
 	print_line $stderr "WARNING: working directory is $(pwd)"
@@ -925,7 +943,7 @@ fi
 readonly AppTmpDir="/tmp/$APPNAME-$$"
 mkdir $AppTmpDir || exit 1
 
-if [ -n "$Name" ] ; then # ACT_LIST takes no args, hence Name is empty
+if [ -n "$Name" ] ; then # ACT_LIST takes no arguments, so Name may be empty
 	readonly BlockDevMountPoint="$AppTmpDir/dev"
 	readonly KeyDevMountPoint="$AppTmpDir/key"
 	readonly LuksMountPoint="/mnt/$APPNAME/$Name"

@@ -1,9 +1,11 @@
 #!/bin/bash
 # This script is part of the luksman test suite, see https://github.com/rigou/luksman
-
+# 
 # testluksman_loop1.sh, testluksman_loop2.sh and testluksman_loop3.sh are used for testing luksman behaviour under heavy system load
 # run them each in a different terminal. They will run indefinitely unless an error occurs.
 # you can stop the test at any moment by creating a STOP file in LocalDir : touch $HOMEDIR/test/STOP
+# 
+# Do not run testluksman.sh while this script is running
 
 # testluksman_loop2.sh : adjust the path and the label of the key files flash drive before running this script
 readonly KeyLabel='LUKSMAN-DEV'
