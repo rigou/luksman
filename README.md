@@ -176,6 +176,7 @@ luksman unmount CLASSIFIED
 ```console
 luksman unmount all
 ```
+
 </details>
 
 ### 5. Delete an encrypted volume
