@@ -6,6 +6,15 @@
 # you can stop the test at any moment by creating a STOP file in LocalDir : touch $HOMEDIR/test/STOP
 # 
 # Do not run testluksman.sh while this script is running
+#
+# This program has been published by its original author in April 2023
+# under the GNU General Public License. This program is free software and
+# you can redistribute it and/or modify it under the terms of the GNU General 
+# Public License as published by the Free Software Foundation, version 3.
+# This program is distributed in the hope that it will be useful, but WITHOUT ANY WARRANTY.
+# See the GNU General Public License for more details : https://www.gnu.org/licenses/#GPL 
+
+# cd ~/bin && sudo ./testluksman_loop2.sh 2>&1 |tee testluksman_loops_log/testluksman_loop2_$(date '+%Y%m%dT%H%M').log
 
 # testluksman_loop2.sh : adjust the path and the label of the key files flash drive before running this script
 readonly KeyLabel='LUKSMAN-DEV'

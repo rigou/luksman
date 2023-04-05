@@ -8,9 +8,16 @@
 #
 # you can interrupt this script with this command: touch $HOME/test/STOP
 # it will make a clean exit, not leaving any file open
+#
+# This program has been published by its original author in April 2023
+# under the GNU General Public License. This program is free software and
+# you can redistribute it and/or modify it under the terms of the GNU General 
+# Public License as published by the Free Software Foundation, version 3.
+# This program is distributed in the hope that it will be useful, but WITHOUT ANY WARRANTY.
+# See the GNU General Public License for more details : https://www.gnu.org/licenses/#GPL 
 
 # adjust the devices information below before running this script :
-readonly BlockDev='/dev/sdc1' # scratch crypted volume *** ITS CURRENT CONTENTS WILL BE LOST ***
+readonly BlockDev='/dev/sdc1' # temporary crypted volume *** ITS CURRENT CONTENTS WILL BE LOST ***
 readonly KeyDev='/dev/sdb1' # key files flash drive
 readonly KeyUUID='656E-774B'
 readonly KeyLabel='LUKSMAN-DEV'

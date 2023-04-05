@@ -1,6 +1,13 @@
 #!/bin/bash
 # This script is part of the luksman test suite, see https://github.com/rigou/luksman
 # it is a subprogram and should not be called from the command line
+#
+# This program has been published by its original author in April 2023
+# under the GNU General Public License. This program is free software and
+# you can redistribute it and/or modify it under the terms of the GNU General 
+# Public License as published by the Free Software Foundation, version 3.
+# This program is distributed in the hope that it will be useful, but WITHOUT ANY WARRANTY.
+# See the GNU General Public License for more details : https://www.gnu.org/licenses/#GPL 
 
 if [ $# -ne 5 ] ; then
 	echo "usage: $(basename "$0") volume_name vol_option(-d -f -UUID) vol_path key_option(-k) key_path"

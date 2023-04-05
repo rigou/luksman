@@ -6,9 +6,18 @@
 # you can stop the test at any moment by creating a STOP file in LocalDir : touch $HOMEDIR/test/STOP
 # 
 # Do not run testluksman.sh while this script is running
+#
+# This program has been published by its original author in April 2023
+# under the GNU General Public License. This program is free software and
+# you can redistribute it and/or modify it under the terms of the GNU General 
+# Public License as published by the Free Software Foundation, version 3.
+# This program is distributed in the hope that it will be useful, but WITHOUT ANY WARRANTY.
+# See the GNU General Public License for more details : https://www.gnu.org/licenses/#GPL 
+
+# cd ~/bin && sudo ./testluksman_loop3.sh 2>&1 |tee testluksman_loops_log/testluksman_loop3_$(date '+%Y%m%dT%H%M').log
 
 # testluksman_loop3.sh : adjust the paths of the devices before running this script. Original values are:
-# - scratch crypted volume : /dev/sdc1 *** ITS CURRENT CONTENTS WILL BE LOST ***
+# - temporary crypted volume : /dev/sdc1 *** ITS CURRENT CONTENTS WILL BE LOST ***
 # - key files flash drive : /dev/sdb1   label : LUKSMAN-DEV
 readonly BlockDev='/dev/sdc1'
 readonly KeyDev='/dev/sdb1'

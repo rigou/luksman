@@ -2,10 +2,10 @@
 # luksman : a simple manager for LUKS encrypted volumes
 # download the latest version of this program : https://github.com/rigou/luksman/releases
 #
-# Richard Goutorbe (rigou@palavas.org), the original author of this program, published it
-# in April 2023 under the GNU General Public License. This program is free software and
-# you can redistribute it and/or modify it under the terms of the GNU General Public License 
-# as published by the Free Software Foundation, version 3.
+# This program has been published by its original author in April 2023
+# under the GNU General Public License. This program is free software and
+# you can redistribute it and/or modify it under the terms of the GNU General 
+# Public License as published by the Free Software Foundation, version 3.
 # This program is distributed in the hope that it will be useful, but WITHOUT ANY WARRANTY.
 # See the GNU General Public License for more details : https://www.gnu.org/licenses/#GPL 
 #
@@ -392,7 +392,6 @@ function create_luks {
 			else
 				retval=1 # error or user sent SIGINT
 			fi
-			sync
 		else
 			luks_dev=$BlockDev
 		fi
@@ -444,6 +443,11 @@ function create_luks {
 	fi
 	
 	if [ $luksopen_bool -eq 1 ] ; then
+		print_line $stdebug "closing $LuksMap"
+		# sometimes (under high system load) cryptsetup close would issue this message
+		# "device-mapper: remove ioctl on $Name failed: Device or resource busy"
+		# but would return 0 (success). Sync solves this issue.
+		sync
 		cryptsetup close "$LuksMap"
 	fi
 	
@@ -654,11 +658,16 @@ function delete_luks {
 	if [ "$(get_volume_status)" -eq $GVS_CLOSED ] ; then
 		# Confirm that the deletion candidate is actually a LUKS volume
 		if mount_luks ; then
-			# take a short nap after mount because sometimes (under high system load) umount would fail
-			# with "umount: /mnt/luksman/TEST01-28240: target is busy."
-			sleep 5
-			# unmount the encrypted filesystem and close the LUKS object
+			# sometimes (under high system load) umount would fail
+			# with "umount: $LuksMountPoint: target is busy"
+			# Sync solves this issue.
+			sync
 			if umount "$LuksMountPoint" ; then
+				print_line $stdebug "closing $LuksMap"
+				# sometimes (under high system load) cryptsetup close would issue this message
+				# "device-mapper: remove ioctl on $Name failed: Device or resource busy"
+				# but would return 0 (success). Sync solves this issue.
+				sync
 				if cryptsetup close "$LuksMap" ; then
 					print_line $stdout "deleting $Name"
 					# locate the LUKS container
