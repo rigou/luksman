@@ -58,7 +58,7 @@ sudo luksman action [volume_name [options]]
 
 ### 1. Create an encrypted volume
 ```console
-sudo luksman create name (-d device | -f folder -s size_MB) [-k keyfile] [-y]
+luksman create name (-d device | -f folder -s size_MB) [-k keyfile] [-y]
 ```
 * WARNING: when using option -d, the data currently stored at this location will be lost ; use ``lsblk`` to make certain it is correct
 * when using option -f, the container file will be created in the specified folder with the given name and the ".dat" extension
