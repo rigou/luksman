@@ -14,7 +14,7 @@ Main Repository : https://github.com/rigou/luksman
 * you can revoke a key file and generate a new one if you suspect it has been compromised
 * you can delete an encrypted volume and its key file
 
-These features cover 99% of the author's needs. If your requirements are more complex, you can still use [cryptsetup](https://wiki.archlinux.org/title/dm-crypt/Device_encryption) on the encrypted volumes created by ``luksman`` and do whatever you want.
+If your requirements are more complex, you can still use [cryptsetup](https://wiki.archlinux.org/title/dm-crypt/Device_encryption) on the encrypted volumes created by ``luksman`` and do whatever you want.
 
 ## Installation
 Install the required package ``cryptsetup-bin`` for LUKS and dm-crypt support
