@@ -11,11 +11,11 @@
 #
 # Installation, usage : https://github.com/rigou/luksman/blob/main/README.md
 # Run this script as root (sudo)
-
+# 2024-10-23 v1.4.2 added tune2fs after creating the fs
 set -o nounset
 
 readonly APPNAME='luksman'
-readonly VERSION='1.4.1'
+readonly VERSION='1.4.2'
 
 # output user-readable messages
 declare -i DEBUG_ENABLED=0 # 1=enabled, 0=disabled
@@ -429,6 +429,7 @@ function create_luks {
 	
 	if [ $retval -eq 0 ] ; then
 		if mkfs -t ext4 -L "$Name" "$LuksMap" ; then
+			tune2fs -c 5 "$LuksMap"
 			print_line $stdout "assigning $Name to $USERNAME"
 			if mount "$LuksMap" "$LuksMountPoint" ; then
 				chown "$USERNAME": "$LuksMountPoint"
